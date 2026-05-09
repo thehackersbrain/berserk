@@ -266,6 +266,9 @@ func TestValidationCatchesMissingFields(t *testing.T) {
 		"unknown installer": `tools:
   - name: foo
     installer: hopium`,
+		"oneliner without oneliner field": `tools:
+  - name: foo
+    installer: oneliner`,
 		"duplicate name": `tools:
   - name: dup
     installer: pipx

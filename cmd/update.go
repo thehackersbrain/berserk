@@ -84,7 +84,9 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 		wg.Add(1)
 		go func(b backendFn) {
 			defer wg.Done()
+			mu.Lock()
 			printProgress("Updating %s packages...", b.name)
+			mu.Unlock()
 			if err := b.fn(); err != nil {
 				mu.Lock()
 				printWarn("%s update: %v", b.name, err)
@@ -104,7 +106,9 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 		defer wg.Done()
 		for _, t := range reg.Tools {
 			if t.Installer == "go" {
+				mu.Lock()
 				printProgress("Updating go tool: %s", t.Name)
+				mu.Unlock()
 				if err := installer.Go(t); err != nil {
 					mu.Lock()
 					printWarn("go update %s: %v", t.Name, err)

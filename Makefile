@@ -13,7 +13,10 @@ CONFIGDIR   ?= /usr/share/berserk
 #   make install DESTDIR=/tmp/pkgroot PREFIX=/usr
 DESTDIR     ?=
 
-VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo v0.1.0)
+# Drop --always so the fallback fires when no tag is reachable. With --always,
+# git describe prints the abbreviated SHA instead of erroring out, which means
+# `|| echo v0.1.0` never runs and the binary reports a SHA as its version.
+VERSION     := $(shell git describe --tags --dirty 2>/dev/null || echo v0.1.0)
 COMMIT      := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE        := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -51,11 +54,11 @@ install: build
 ## uninstall: remove files placed by `make install`
 .PHONY: uninstall
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/$(BINARY)
-	rm -f $(DESTDIR)$(CONFIGDIR)/config.yaml
-	rm -f $(DESTDIR)$(CONFIGDIR)/tools.yaml
-	rm -f $(DESTDIR)$(CONFIGDIR)/profiles.yaml
-	rm -f $(DESTDIR)$(CONFIGDIR)/categories.yaml
+	sudo rm -f $(DESTDIR)$(BINDIR)/$(BINARY)
+	sudo rm -f $(DESTDIR)$(CONFIGDIR)/config.yaml
+	sudo rm -f $(DESTDIR)$(CONFIGDIR)/tools.yaml
+	sudo rm -f $(DESTDIR)$(CONFIGDIR)/profiles.yaml
+	sudo rm -f $(DESTDIR)$(CONFIGDIR)/categories.yaml
 
 ## test: run tests with race detector
 .PHONY: test
