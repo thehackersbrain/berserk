@@ -34,9 +34,8 @@ tools:
     description: "AD attack path mapping and visualization"
     category: [ad]
     profiles: [ad-attacks]
-    installer: binary
-    repo: SpecterOps/BloodHound
-    asset_pattern: "bloodhound-cli-linux-amd64.tar.gz"
+    installer: oneliner
+    oneliner: "wget https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-amd64.tar.gz && tar -xzf bloodhound-cli-linux-amd64.tar.gz && sudo mv bloodhound-cli /usr/local/bin/"
   - name: evil-winrm
     description: "WinRM shell for pentesting Windows targets"
     category: [ad, post-exploitation]
