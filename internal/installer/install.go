@@ -41,8 +41,8 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 		return Binary(tool, opts.InstallDir, opts.GithubToken)
 	case "system":
 		return System(tool, d)
-	case "oneliner":
-		return Oneliner(tool)
+	case "custom":
+		return CustomInstall(tool)
 	default:
 		return fmt.Errorf("unknown installer: %s", tool.Installer)
 	}
@@ -63,9 +63,9 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 		return PipxReinstall(tool)
 	case "gem":
 		return GemUpgrade(tool)
-	case "oneliner":
+	case "custom":
 		// Re-running the install script is the standard upgrade path.
-		return Oneliner(tool)
+		return CustomInstall(tool)
 	default:
 		return Install(tool, d, opts)
 	}
@@ -120,7 +120,7 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 			return runRoot("apt-get", "remove", "-y", pkg)
 		}
 
-	case "oneliner":
+	case "custom":
 		return fmt.Errorf("%s was installed via a custom script; remove it manually", tool.Name)
 	}
 	return fmt.Errorf("cannot remove %s (installer: %s)", tool.Name, tool.Installer)

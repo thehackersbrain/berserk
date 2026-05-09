@@ -38,7 +38,7 @@ type Tool struct {
 	AssetPattern  string   `yaml:"asset_pattern"`
 	ArchPackage   string   `yaml:"arch_package"`
 	DebianPackage string   `yaml:"debian_package"`
-	Oneliner      string   `yaml:"oneliner"`
+	Steps         []string `yaml:"steps"`
 }
 
 // Profile is one declaration in profiles.yaml. Tools opt into a profile by
@@ -264,9 +264,9 @@ func (r *Registry) Validate() error {
 			if t.Repo == "" {
 				errs = append(errs, fmt.Sprintf("%s: binary installer needs 'repo'", ctx))
 			}
-		case "oneliner":
-			if t.Oneliner == "" {
-				errs = append(errs, fmt.Sprintf("%s: oneliner installer needs 'oneliner' field", ctx))
+		case "custom":
+			if t.Steps == nil {
+				errs = append(errs, fmt.Sprintf("%s: custom installer needs 'steps' array", ctx))
 			}
 		case "cargo", "gem", "npm", "system":
 			// package/system fields default to t.Name, so always valid

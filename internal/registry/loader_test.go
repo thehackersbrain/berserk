@@ -41,7 +41,7 @@ func writeTestYAML(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "tools.yaml")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -266,9 +266,9 @@ func TestValidationCatchesMissingFields(t *testing.T) {
 		"unknown installer": `tools:
   - name: foo
     installer: hopium`,
-		"oneliner without oneliner field": `tools:
+		"custom without steps field": `tools:
   - name: foo
-    installer: oneliner`,
+    installer: custom`,
 		"duplicate name": `tools:
   - name: dup
     installer: pipx
@@ -478,7 +478,7 @@ func writeFiles(t *testing.T, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	for name, body := range files {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
 			t.Fatalf("writing %s: %v", name, err)
 		}
 	}

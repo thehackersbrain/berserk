@@ -32,8 +32,8 @@ var infoCmd = &cobra.Command{
 			{"Installer", t.Installer},
 			{"Categories", strings.Join(t.Category, ", ")},
 		}
-		if t.Oneliner != "" {
-			rows = append(rows, []string{"Install cmd", t.Oneliner})
+		if t.Steps != nil {
+			rows = append(rows, []string{"Install cmd", "Custom Steps are specified"})
 		}
 		if len(t.Profiles) > 0 {
 			rows = append(rows, []string{"Profiles", strings.Join(t.Profiles, ", ")})

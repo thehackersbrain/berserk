@@ -18,7 +18,7 @@ tools:
     category: [recon, web]            # OPTIONAL — must reference categories.yaml entries
     profiles: [recon, red-team]       # OPTIONAL — must reference profiles.yaml entries
     aliases: [exa, ext]               # OPTIONAL — `berserk install exa` resolves to example-tool
-    installer: pipx                   # REQUIRED — pipx | go | cargo | gem | npm | binary | system | oneliner
+    installer: pipx                   # REQUIRED — pipx | go | cargo | gem | npm | binary | system | custom
     repo: owner/example-tool          # installer-specific (see below) — always GitHub owner/name
     package: example-tool             # installer-specific (see below)
 
@@ -114,14 +114,17 @@ tools:
     debian_package: john-jumbo
 
   # ─────────────────────────────────────────────────────────────────────
-  # oneliner — runs a vendor-supplied install script through `sh -c`.
-  # Use when the tool's official install method is a curl-pipe-bash
-  # (or similar) command. `oneliner` is REQUIRED with this installer.
+  # custom — runs a supplied install command through `sh -c`.
+  # Use when crafting custom install steps for a tool
+  # `steps` is REQUIRED with this installer.
   # Update re-runs the same command. Remove is manual (no uninstall path).
   # ─────────────────────────────────────────────────────────────────────
-  - name: sliver
-    description: "Adversary simulation C2 framework"
-    category: [post-exploitation, c2]
-    profiles: [c2, post-exploitation]
-    installer: oneliner
-    oneliner: "curl https://sliver.sh/install|sudo bash"
+  - name: bloodhound
+    description: "AD attack path mapping and visualization"
+    category: [ad]
+    profiles: [ad-attacks]
+    installer: custom
+    steps:
+      - "wget https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-amd64.tar.gz -O /tmp/bloodhound-cli-linux-amd64.tar.gz"
+      - "tar -xzf /tmp/bloodhound-cli-linux-amd64.tar.gz -C /tmp"
+      - "sudo mv /tmp/bloodhound-cli /usr/local/bin/"
