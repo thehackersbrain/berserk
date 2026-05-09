@@ -1,3 +1,4 @@
+// Package conflict -- conflict detection
 package conflict
 
 import (

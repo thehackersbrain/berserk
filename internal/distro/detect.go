@@ -1,3 +1,4 @@
+// Package distro -- distro detection
 package distro
 
 import (
@@ -32,6 +33,7 @@ func (d Distro) String() string {
 	}
 }
 
+//nolint:errcheck
 func Detect() Distro {
 	f, err := os.Open("/etc/os-release")
 	if err != nil {

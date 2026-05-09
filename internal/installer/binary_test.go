@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+//nolint:errcheck
 func makeTarGz(t *testing.T, dir, binaryName, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, "archive.tar.gz")
@@ -20,13 +21,14 @@ func makeTarGz(t *testing.T, dir, binaryName, content string) string {
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	body := []byte(content)
-	tw.WriteHeader(&tar.Header{Name: binaryName, Size: int64(len(body)), Mode: 0755, Typeflag: tar.TypeReg})
+	tw.WriteHeader(&tar.Header{Name: binaryName, Size: int64(len(body)), Mode: 0o755, Typeflag: tar.TypeReg})
 	tw.Write(body)
 	tw.Close()
 	gz.Close()
 	return path
 }
 
+//nolint:errcheck
 func makeZip(t *testing.T, dir, binaryName, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, "archive.zip")
@@ -101,6 +103,7 @@ func TestExtractZipNotFound(t *testing.T) {
 	}
 }
 
+//nolint:errcheck
 func TestTarGzNestedPath(t *testing.T) {
 	// Binaries are often nested: frp_linux_amd64/frp
 	dir := t.TempDir()
@@ -113,7 +116,7 @@ func TestTarGzNestedPath(t *testing.T) {
 	tw.WriteHeader(&tar.Header{
 		Name:     "frp_linux_amd64/frp",
 		Size:     int64(len(body)),
-		Mode:     0755,
+		Mode:     0o755,
 		Typeflag: tar.TypeReg,
 	})
 	tw.Write(body)

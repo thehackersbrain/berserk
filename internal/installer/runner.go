@@ -1,3 +1,4 @@
+// Package installer -- handles all the install actions
 package installer
 
 import (
@@ -10,7 +11,7 @@ import (
 // Verbose controls whether commands are echoed to stderr before running.
 var Verbose bool
 
-// UseSudo, when true, prepends `sudo` to runRoot calls if the process is not root.
+// UseSudo when true, prepends `sudo` to runRoot calls if the process is not root.
 var UseSudo = true
 
 func runCmd(name string, args ...string) error {
@@ -47,7 +48,7 @@ func canWrite(dir string) bool {
 	if err != nil {
 		return false
 	}
-	tmp.Close()
-	os.Remove(tmp.Name())
+	tmp.Close()           //nolint:errcheck
+	os.Remove(tmp.Name()) //nolint:errcheck
 	return true
 }

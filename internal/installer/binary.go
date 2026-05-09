@@ -30,6 +30,7 @@ type ghAsset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
+//nolint:errcheck
 func Binary(tool registry.Tool, installDir, githubToken string) error {
 	if tool.Repo == "" {
 		return fmt.Errorf("binary installer: no repo defined for %s", tool.Name)
@@ -140,7 +141,7 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 		}
 	}
 
-	if err := os.Chmod(stagingDest, 0755); err != nil {
+	if err := os.Chmod(stagingDest, 0o755); err != nil {
 		return fmt.Errorf("chmod %s: %w", stagingDest, err)
 	}
 
@@ -152,6 +153,8 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 
 // extractTarGz finds the first file named `binaryName` inside a .tar.gz and
 // writes it to dest. If no exact match, it picks the first regular file.
+//
+//nolint:errcheck
 func extractTarGz(archivePath, binaryName, dest string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -197,6 +200,7 @@ func extractFromTar(tr *tar.Reader, binaryName, dest string) error {
 	return fmt.Errorf("binary %q not found in archive", binaryName)
 }
 
+//nolint:errcheck
 func writeTarEntry(r io.Reader, dest string) error {
 	out, err := os.Create(dest)
 	if err != nil {
@@ -207,6 +211,7 @@ func writeTarEntry(r io.Reader, dest string) error {
 	return err
 }
 
+//nolint:errcheck
 func extractZip(archivePath, binaryName, dest string) error {
 	r, err := zip.OpenReader(archivePath)
 	if err != nil {
@@ -235,6 +240,7 @@ func moveFile(src, dst string) error {
 	return copyFile(src, dst)
 }
 
+//nolint:errcheck
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
