@@ -263,9 +263,8 @@ tools:
     description: "Adversary simulation C2 framework"
     category: [post-exploitation, c2]
     profiles: [c2, post-exploitation]
-    installer: binary
-    repo: BishopFox/sliver
-    asset_pattern: "sliver-client_linux"
+    installer: oneliner
+    oneliner: "curl https://sliver.sh/install|sudo bash"
   - name: frp
     description: "Fast reverse proxy for NAT traversal and tunneling"
     category: [post-exploitation, pivoting]

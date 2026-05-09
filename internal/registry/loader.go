@@ -38,6 +38,7 @@ type Tool struct {
 	AssetPattern  string   `yaml:"asset_pattern"`
 	ArchPackage   string   `yaml:"arch_package"`
 	DebianPackage string   `yaml:"debian_package"`
+	Oneliner      string   `yaml:"oneliner"`
 }
 
 // Profile is one declaration in profiles.yaml. Tools opt into a profile by
@@ -263,6 +264,10 @@ func (r *Registry) Validate() error {
 			if t.Repo == "" {
 				errs = append(errs, fmt.Sprintf("%s: binary installer needs 'repo'", ctx))
 			}
+		case "oneliner":
+			if t.Oneliner == "" {
+				errs = append(errs, fmt.Sprintf("%s: oneliner installer needs 'oneliner' field", ctx))
+			}
 		case "cargo", "gem", "npm", "system":
 			// package/system fields default to t.Name, so always valid
 		default:
@@ -425,6 +430,20 @@ func (r *Registry) ProfileByName(name string) (*Profile, bool) {
 // after Includes resolution. Returns 0 if the profile is unknown.
 func (r *Registry) ProfileMemberCount(name string) int {
 	return len(r.members[name])
+}
+
+// CategoryToolCount returns how many tools list the given category.
+func (r *Registry) CategoryToolCount(name string) int {
+	n := 0
+	for _, t := range r.Tools {
+		for _, c := range t.Category {
+			if c == name {
+				n++
+				break
+			}
+		}
+	}
+	return n
 }
 
 // SearchOpts narrows a search by orthogonal facets. An empty field is ignored.
