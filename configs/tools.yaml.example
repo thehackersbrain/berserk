@@ -1,0 +1,114 @@
+# tools.yaml.example — reference syntax for berserk tool entries.
+#
+# Drop this in your config dir as `tools.yaml` (or any other *.yaml/*.yml
+# name except `config.yaml`) to have berserk load it. The `.example`
+# extension means berserk SKIPS this file — copy what you need into a real
+# catalog file.
+#
+# Names referenced in `profiles:` and `category:` MUST be declared in
+# profiles.yaml and categories.yaml respectively. Validation runs on every
+# load and accumulates every problem at once.
+
+tools:
+  # ─────────────────────────────────────────────────────────────────────
+  # Field reference — every key annotated.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: example-tool                # REQUIRED — canonical name; usually the binary on $PATH
+    description: "One-line summary"   # OPTIONAL — shown in `list`, `search`, `info`
+    category: [recon, web]            # OPTIONAL — must reference categories.yaml entries
+    profiles: [recon, red-team]       # OPTIONAL — must reference profiles.yaml entries
+    aliases: [exa, ext]               # OPTIONAL — `berserk install exa` resolves to example-tool
+    installer: pipx                   # REQUIRED — pipx | go | cargo | gem | npm | binary | system
+    repo: owner/example-tool          # installer-specific (see below) — always GitHub owner/name
+    package: example-tool             # installer-specific (see below)
+
+  # ─────────────────────────────────────────────────────────────────────
+  # pipx — Python tools. Either `repo` (installs from git+https://github.com/...)
+  # or `package` (installs from PyPI). `repo` wins if both are set.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: netexec
+    description: "Swiss army knife for network protocols"
+    category: [ad, lateral-movement, recon]
+    profiles: [ad-attacks]
+    aliases: [nxc]
+    installer: pipx
+    repo: Pennyw0rth/NetExec           # → git+https://github.com/Pennyw0rth/NetExec
+
+  - name: theharvester
+    description: "Email/subdomain harvester"
+    category: [recon, osint]
+    profiles: [recon, osint]
+    installer: pipx
+    package: theharvester              # → installs from PyPI
+    python_version: "3.11"             # OPTIONAL — pipx --python python3.11
+
+  # ─────────────────────────────────────────────────────────────────────
+  # go — `go install <pkg>@latest`. Either `repo` (full module path) or
+  # `package`. `repo` is just the module path; @latest is appended.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: nuclei
+    description: "Template-based vulnerability scanner"
+    category: [web, recon]
+    profiles: [web, recon]
+    installer: go
+    repo: projectdiscovery/nuclei/v3/cmd/nuclei
+
+  # ─────────────────────────────────────────────────────────────────────
+  # cargo — `cargo install <pkg>`. `package` defaults to `name`.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: rustscan
+    description: "Modern fast port scanner"
+    category: [recon]
+    profiles: [recon]
+    installer: cargo
+    # package: rustscan   # implicit — defaults to `name`
+
+  # ─────────────────────────────────────────────────────────────────────
+  # gem — `gem install <pkg>`. `package` defaults to `name`.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: evil-winrm
+    description: "WinRM shell for pentesting Windows targets"
+    category: [ad, post-exploitation]
+    profiles: [ad-attacks]
+    installer: gem
+
+  # ─────────────────────────────────────────────────────────────────────
+  # npm — `npm install -g <pkg>`. `package` defaults to `name`.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: retire
+    description: "Scanner for known-vulnerable JS libraries"
+    category: [web]
+    profiles: [web]
+    installer: npm
+
+  # ─────────────────────────────────────────────────────────────────────
+  # binary — pulls a release asset from GitHub. Needs `repo` and almost
+  # always `asset_pattern` (substring match against asset names).
+  # ─────────────────────────────────────────────────────────────────────
+  - name: linpeas
+    description: "Linux privilege escalation auditing"
+    category: [post-exploitation, privesc]
+    profiles: [privesc, post-exploitation]
+    installer: binary
+    repo: peass-ng/PEASS-ng
+    asset_pattern: "linpeas.sh"        # substring; "linux-amd64", ".tar.gz" also work
+
+  # ─────────────────────────────────────────────────────────────────────
+  # system — distro package manager. Falls through to pacman / apt-get.
+  # `arch_package` and `debian_package` override `name` per-distro.
+  # ─────────────────────────────────────────────────────────────────────
+  - name: nmap
+    description: "Network discovery and security auditing"
+    category: [recon]
+    profiles: [recon]
+    installer: system
+    # arch_package: nmap        # implicit — defaults to `name`
+    # debian_package: nmap      # implicit — defaults to `name`
+
+  - name: john
+    description: "John the Ripper password cracker"
+    category: [password-attacks, credentials]
+    profiles: [password-attacks, credentials]
+    installer: system
+    arch_package: john           # explicit when distro names diverge
+    debian_package: john-jumbo

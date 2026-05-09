@@ -1,0 +1,5 @@
+github_token: ""
+install_dir: /usr/local/bin
+parallel: true
+verbose: false
+color: true

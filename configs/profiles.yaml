@@ -1,0 +1,38 @@
+profiles:
+  - name: ad-attacks
+    description: "Active Directory attacks and lateral movement"
+  - name: c2
+    description: "Command-and-control frameworks"
+  - name: cloud
+    description: "Cloud infrastructure attacks (AWS, Azure, GCP)"
+  - name: container
+    description: "Container and Kubernetes security"
+  - name: credentials
+    description: "Credential capture, extraction, and dumping"
+  - name: forensics
+    description: "Digital forensics and incident response"
+  - name: malware-dev
+    description: "Offensive payload and malware development"
+  - name: mobile
+    description: "Mobile application security"
+  - name: oscp
+    description: "OSCP exam toolkit"
+  - name: osint
+    description: "Open-source intelligence collection"
+  - name: password-attacks
+    description: "Password cracking and authentication attacks"
+  - name: post-exploitation
+    description: "Post-exploitation, persistence, and lateral movement"
+  - name: privesc
+    description: "Privilege escalation enumeration and exploitation"
+  - name: recon
+    description: "Reconnaissance and asset discovery"
+  - name: red-team
+    description: "Composed engagement profile (AD + web + post-ex + creds)"
+    includes: [ad-attacks, credentials, post-exploitation, web]
+  - name: reversing
+    description: "Reverse engineering and binary analysis"
+  - name: web
+    description: "Web application security testing"
+  - name: wireless
+    description: "Wireless network attacks (Wi-Fi, Bluetooth)"

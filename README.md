@@ -1,0 +1,159 @@
+# berserk
+
+Curated offensive security tool manager for BerserkArch, Kali, Parrot, and Debian/Ubuntu.
+
+**Philosophy:** ~200 essential tools, always from upstream sources, always latest.
+Single Go binary. Not a package manager — delegates to pipx, cargo, `go install`, gem, npm, GitHub releases, and `pacman`/`apt`.
+
+---
+
+## Install
+
+```bash
+git clone https://github.com/thehackersbrain/berserk
+cd berserk
+make install   # installs the binary to /usr/local/bin and every yaml in ./configs to /usr/share/berserk
+```
+
+Or do it by hand:
+
+```bash
+go build -o berserk .
+sudo install -m 0755 berserk /usr/local/bin/
+sudo install -d /usr/share/berserk
+sudo cp configs/*.yaml /usr/share/berserk/
+```
+
+`berserk` reads its config directory on every invocation. By default that's
+`/usr/share/berserk`; override with `--config <dir>`. The directory holds:
+
+- `config.yaml` — runtime knobs (github_token, install_dir, parallel, etc.)
+- `tools.yaml` — the tool catalog (or split across `ad.yaml`, `web.yaml`, etc.)
+- `profiles.yaml` — declarations of available profiles
+- `categories.yaml` — declarations of available categories
+
+Every `*.yaml`/`*.yml` in the dir except `config.yaml` is merged at load time,
+so you can split however the maintainer prefers.
+
+## Quick start
+
+```bash
+berserk doctor                 # verify pipx, cargo, go, gem, npm are installed
+berserk list                   # browse the 49 curated tools
+berserk install --profile ad-attacks
+berserk install nuclei httpx ffuf
+berserk update                 # update everything via every backend
+berserk install nxc            # aliases supported (nxc → netexec)
+```
+
+## Usage
+
+```
+berserk install [tool...]            install tools by name
+berserk install --profile <name>     install all tools in a profile
+berserk install --all                install everything
+berserk install --dry-run ...        preview without installing
+berserk update [tool...]             update specific tools
+berserk update --profile <name>      update a profile
+berserk update                       fire all backend updaters in parallel
+berserk remove <tool>                remove a tool
+berserk list [--installed] [-p X]    list tools, optionally filtered
+berserk search [query] [-c CAT]      ranked search across name/alias/category/desc
+                  [-i INSTALLER]       (filters compose; --installed / --available
+                  [--installed]         narrow by install status)
+                  [--available]
+berserk info <tool>                  show source, repo, installer
+berserk profiles                     list every defined profile and its tool count
+berserk check                        audit which tools are missing
+berserk doctor                       verify all backends are available
+berserk self-update                  update berserk itself
+berserk version
+```
+
+Global flags: `--config <dir>` (config directory, default `/usr/share/berserk`). Set `NO_COLOR=1` to disable ANSI colors. Set `BERSERK_NO_SUDO=1` to refuse sudo escalation (default: berserk auto-prepends sudo for system-package and `/usr/local/bin` writes).
+
+## Profiles & categories
+
+Profiles and categories are **declared** in `profiles.yaml` and
+`categories.yaml`. Tools opt into them by listing their names:
+
+```yaml
+# profiles.yaml
+profiles:
+  - name: ad-attacks
+    description: "Active Directory attacks and lateral movement"
+  - name: red-team
+    description: "Composed engagement profile"
+    includes: [ad-attacks, web, post-exploitation, credentials]   # rolls up members
+
+# categories.yaml
+categories:
+  - name: ad
+    description: "Active Directory"
+  - name: lateral-movement
+    description: "Lateral movement techniques"
+
+# tools.yaml
+tools:
+  - name: netexec
+    description: "..."
+    category: [ad, lateral-movement, recon]   # must reference categories.yaml
+    profiles: [ad-attacks]                    # must reference profiles.yaml
+    installer: pipx
+    repo: Pennyw0rth/NetExec
+```
+
+Validation enforces the contract: a tool referencing an undeclared profile
+or category, or a profile including an undeclared profile, is a hard error.
+Composition rolls up at query time — `red-team` automatically resolves to
+every tool in `ad-attacks ∪ web ∪ post-exploitation ∪ credentials`.
+
+Run `berserk profiles` to see all declared profiles with their resolved
+member counts.
+
+## Adding a tool
+
+Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split file like `ad.yaml`). Each entry needs at minimum `name` and `installer`. Per-installer requirements:
+
+| installer | required               | example                              |
+|-----------|------------------------|--------------------------------------|
+| `pipx`    | `repo` or `package`    | `repo: fortra/impacket`              |
+| `go`      | `repo` or `package`    | `repo: projectdiscovery/nuclei/v3/cmd/nuclei` |
+| `cargo`   | (`package` defaults)   | `package: rustscan`                  |
+| `gem`     | (`package` defaults)   | `package: evil-winrm`                |
+| `npm`     | (`package` defaults)   | `package: <pkg>`                     |
+| `binary`  | `repo` + `asset_pattern` | `repo: BishopFox/sliver`, `asset_pattern: sliver-client_linux` |
+| `system`  | `arch_package` or `debian_package` (default: name) | |
+
+Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only).
+
+See `configs/tools.yaml.example` for a worked entry per installer.
+
+`berserk` validates the merged tool registry on every load — malformed entries, duplicate tool names, alias collisions, and references to undeclared profiles/categories all fail fast.
+
+## How install detection works
+
+`berserk` records every successful install in a state file at
+`$XDG_STATE_HOME/berserk/installed.yaml` (default
+`~/.local/state/berserk/installed.yaml`). `check`, `list --installed`,
+`search --installed`, and `search --available` read this file as the source
+of truth — that's how a tool like `impacket` (whose binaries are
+`smbserver.py`, `secretsdump.py`, etc., never `impacket` on PATH) is
+correctly reported as installed once berserk has installed it. PATH lookup
+is kept as a fallback so tools you installed before berserk knew about them
+still register.
+
+## How update works
+
+`berserk update` (no args) fires every backend updater in parallel:
+- `pipx upgrade-all`
+- `cargo install-update -a` (requires `cargo-install-update`)
+- `gem update`
+- `npm update -g`
+- `go install ...@latest` for every go-installed tool
+
+Per-tool updates (`berserk update <name>`) just re-run the install at `@latest`.
+
+## License
+
+Source available; no formal license yet (see plan.md).

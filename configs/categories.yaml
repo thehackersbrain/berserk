@@ -1,0 +1,59 @@
+categories:
+  - name: ad
+    description: "Active Directory"
+  - name: adcs
+    description: "Active Directory Certificate Services"
+  - name: audit
+    description: "Audit"
+  - name: c2
+    description: "Command and control"
+  - name: cloud
+    description: "Cloud platforms"
+  - name: container
+    description: "Container and orchestration"
+  - name: credentials
+    description: "Credential dumping and capture"
+  - name: crypto
+    description: "Cryptographic attacks"
+  - name: ctf
+    description: "Ctf"
+  - name: evasion
+    description: "Evasion"
+  - name: exploitation
+    description: "Exploitation and offensive use"
+  - name: forensics
+    description: "Forensics"
+  - name: iot
+    description: "Iot"
+  - name: k8s
+    description: "K8s"
+  - name: lateral-movement
+    description: "Lateral movement techniques"
+  - name: malware-dev
+    description: "Malware and payload development"
+  - name: misc
+    description: "Miscellaneous"
+  - name: mobile
+    description: "Mobile platforms"
+  - name: osint
+    description: "Open-source intelligence"
+  - name: password-attacks
+    description: "Password cracking"
+  - name: pivoting
+    description: "Network pivoting"
+  - name: post-exploitation
+    description: "Post-exploitation"
+  - name: privesc
+    description: "Privilege escalation"
+  - name: recon
+    description: "Reconnaissance"
+  - name: reversing
+    description: "Reverse engineering"
+  - name: sast
+    description: "Sast"
+  - name: smb
+    description: "Smb"
+  - name: web
+    description: "Web application testing"
+  - name: wireless
+    description: "Wireless attacks"
