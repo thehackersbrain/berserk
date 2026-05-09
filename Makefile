@@ -2,7 +2,6 @@
 # Run `make help` for the target list.
 
 BINARY      := berserk
-PKG         := github.com/thehackersbrain/berserk
 PREFIX      ?= /usr/local
 BINDIR      ?= $(PREFIX)/bin
 # CONFIGDIR holds config.yaml and the tool catalog yaml files. berserk reads
@@ -13,14 +12,7 @@ CONFIGDIR   ?= /usr/share/berserk
 #   make install DESTDIR=/tmp/pkgroot PREFIX=/usr
 DESTDIR     ?=
 
-# Drop --always so the fallback fires when no tag is reachable. With --always,
-# git describe prints the abbreviated SHA instead of erroring out, which means
-# `|| echo v0.1.0` never runs and the binary reports a SHA as its version.
-VERSION     := $(shell git describe --tags --dirty 2>/dev/null || echo v0.1.0)
-COMMIT      := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-DATE        := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-
-LDFLAGS     := -s -w -X $(PKG)/cmd.Version=$(VERSION)
+LDFLAGS     := -s -w
 GOFLAGS     := -trimpath -ldflags '$(LDFLAGS)'
 
 DIST        := dist
@@ -44,21 +36,17 @@ run: build
 ## install: install $(BINARY) to $(BINDIR) and every yaml in ./configs to $(CONFIGDIR)
 .PHONY: install
 install: build
-	sudo install -d $(DESTDIR)$(BINDIR) $(DESTDIR)$(CONFIGDIR)
-	sudo install -m 0755 $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
-	sudo install -m 0644 configs/config.yaml $(DESTDIR)$(CONFIGDIR)/config.yaml
-	sudo install -m 0644 configs/tools.yaml $(DESTDIR)$(CONFIGDIR)/tools.yaml
-	sudo install -m 0644 configs/profiles.yaml $(DESTDIR)$(CONFIGDIR)/profiles.yaml
-	sudo install -m 0644 configs/categories.yaml $(DESTDIR)$(CONFIGDIR)/categories.yaml
+	sudo mkdir -p $(DESTDIR)$(BINDIR)
+	sudo cp $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
+	sudo rm -rf $(DESTDIR)$(CONFIGDIR)
+	sudo mkdir -p $(DESTDIR)$(CONFIGDIR)
+	sudo cp -r configs/* $(DESTDIR)$(CONFIGDIR)/
 
 ## uninstall: remove files placed by `make install`
 .PHONY: uninstall
 uninstall:
 	sudo rm -f $(DESTDIR)$(BINDIR)/$(BINARY)
-	sudo rm -f $(DESTDIR)$(CONFIGDIR)/config.yaml
-	sudo rm -f $(DESTDIR)$(CONFIGDIR)/tools.yaml
-	sudo rm -f $(DESTDIR)$(CONFIGDIR)/profiles.yaml
-	sudo rm -f $(DESTDIR)$(CONFIGDIR)/categories.yaml
+	sudo rm -rf $(DESTDIR)$(CONFIGDIR)
 
 ## test: run tests with race detector
 .PHONY: test
@@ -116,11 +104,6 @@ clean-dist:
 ## clean-all: clean everything
 .PHONY: clean-all
 clean-all: clean clean-dist
-
-## version: print the version that would be embedded in the next build
-.PHONY: version
-version:
-	@echo $(VERSION)
 
 ## help: list targets
 .PHONY: help
