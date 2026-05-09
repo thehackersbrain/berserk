@@ -36,7 +36,7 @@ tools:
     profiles: [ad-attacks]
     installer: binary
     repo: SpecterOps/BloodHound
-    asset_pattern: "bloodhound-linux-amd64"
+    asset_pattern: "bloodhound-cli-linux-amd64.tar.gz"
   - name: evil-winrm
     description: "WinRM shell for pentesting Windows targets"
     category: [ad, post-exploitation]
