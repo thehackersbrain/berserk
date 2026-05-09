@@ -35,7 +35,7 @@ tools:
     category: [ad]
     profiles: [ad-attacks]
     installer: oneliner
-    oneliner: "wget https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-amd64.tar.gz && tar -xzf bloodhound-cli-linux-amd64.tar.gz && sudo mv bloodhound-cli /usr/local/bin/"
+    oneliner: "wget https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-amd64.tar.gz -O /tmp/bloodhound-cli-linux-amd64.tar.gz && tar -xzf /tmp/bloodhound-cli-linux-amd64.tar.gz -C /tmp && sudo mv /tmp/bloodhound-cli /usr/local/bin/"
   - name: evil-winrm
     description: "WinRM shell for pentesting Windows targets"
     category: [ad, post-exploitation]
