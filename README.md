@@ -1,9 +1,6 @@
 # berserk
 
-Curated offensive security tool manager for BerserkArch, Kali, Parrot, and Debian/Ubuntu.
-
-**Philosophy:** ~200 essential tools, always from upstream sources, always latest.
-Single Go binary. Not a package manager — delegates to pipx, cargo, `go install`, gem, npm, GitHub releases, and `pacman`/`apt`.
+Curated offensive security tool manager for BerserkArch.
 
 ---
 
@@ -84,7 +81,7 @@ profiles:
     description: "Active Directory attacks and lateral movement"
   - name: red-team
     description: "Composed engagement profile"
-    includes: [ad-attacks, web, post-exploitation, credentials]   # rolls up members
+    includes: [ad-attacks, web, post-exploitation, credentials] # rolls up members
 
 # categories.yaml
 categories:
@@ -97,8 +94,8 @@ categories:
 tools:
   - name: netexec
     description: "..."
-    category: [ad, lateral-movement, recon]   # must reference categories.yaml
-    profiles: [ad-attacks]                    # must reference profiles.yaml
+    category: [ad, lateral-movement, recon] # must reference categories.yaml
+    profiles: [ad-attacks] # must reference profiles.yaml
     installer: pipx
     repo: Pennyw0rth/NetExec
 ```
@@ -115,15 +112,15 @@ member counts.
 
 Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split file like `ad.yaml`). Each entry needs at minimum `name` and `installer`. Per-installer requirements:
 
-| installer | required               | example                              |
-|-----------|------------------------|--------------------------------------|
-| `pipx`    | `repo` or `package`    | `repo: fortra/impacket`              |
-| `go`      | `repo` or `package`    | `repo: projectdiscovery/nuclei/v3/cmd/nuclei` |
-| `cargo`   | (`package` defaults)   | `package: rustscan`                  |
-| `gem`     | (`package` defaults)   | `package: evil-winrm`                |
-| `npm`     | (`package` defaults)   | `package: <pkg>`                     |
-| `binary`  | `repo` + `asset_pattern` | `repo: BishopFox/sliver`, `asset_pattern: sliver-client_linux` |
-| `system`  | `arch_package` or `debian_package` (default: name) | |
+| installer | required                                           | example                                                        |
+| --------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| `pipx`    | `repo` or `package`                                | `repo: fortra/impacket`                                        |
+| `go`      | `repo` or `package`                                | `repo: projectdiscovery/nuclei/v3/cmd/nuclei`                  |
+| `cargo`   | (`package` defaults)                               | `package: rustscan`                                            |
+| `gem`     | (`package` defaults)                               | `package: evil-winrm`                                          |
+| `npm`     | (`package` defaults)                               | `package: <pkg>`                                               |
+| `binary`  | `repo` + `asset_pattern`                           | `repo: BishopFox/sliver`, `asset_pattern: sliver-client_linux` |
+| `system`  | `arch_package` or `debian_package` (default: name) |                                                                |
 
 Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only).
 
@@ -146,6 +143,7 @@ still register.
 ## How update works
 
 `berserk update` (no args) fires every backend updater in parallel:
+
 - `pipx upgrade-all`
 - `cargo install-update -a` (requires `cargo-install-update`)
 - `gem update`
