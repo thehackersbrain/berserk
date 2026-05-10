@@ -58,7 +58,7 @@ func loadContext() (*registry.Registry, distro.Distro, installer.Options, error)
 	dir := configDir()
 	reg, err := registry.LoadDir(dir)
 	if err != nil {
-		return nil, 0, installer.Options{}, fmt.Errorf("loading registry from %s: %w\n\trun %s to get the tools catalog", dir, err, pterm.Green("berserk catalog"))
+		return nil, 0, installer.Options{}, fmt.Errorf("loading registry from %s: %w\n\trun %s to get the tools catalog", dir, err, pterm.Green("berserk sync"))
 	}
 
 	d := distro.Detect()
