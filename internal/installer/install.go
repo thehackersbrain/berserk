@@ -14,6 +14,11 @@ type Options struct {
 	InstallDir  string
 	GithubToken string
 	DryRun      bool
+	// AssumeYes routes `--yes` through to the underlying system package
+	// managers as `--noconfirm` (pacman) or `-y` (apt). Off by default —
+	// non-interactive mode masks legitimate prompts (replace-on-conflict,
+	// downgrade confirmations) that the user often needs to see.
+	AssumeYes bool
 }
 
 // SetVerbose toggles the package-level Verbose flag that runCmd reads.
@@ -24,14 +29,14 @@ func SetVerbose(v bool) { Verbose = v }
 
 func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
-		if err := installDeps(tool, d, true); err != nil {
+		if err := installDeps(tool, d, true, opts.AssumeYes); err != nil {
 			return err
 		}
 		fmt.Printf("[dry-run] would install %s via %s\n", tool.Name, tool.Installer)
 		return nil
 	}
 
-	if err := installDeps(tool, d, false); err != nil {
+	if err := installDeps(tool, d, false, opts.AssumeYes); err != nil {
 		return fmt.Errorf("installing deps for %s: %w", tool.Name, err)
 	}
 
@@ -49,7 +54,7 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 	case "binary":
 		return Binary(tool, opts.InstallDir, opts.GithubToken)
 	case "system":
-		return System(tool, d)
+		return System(tool, d, opts.AssumeYes)
 	case "custom":
 		return CustomInstall(tool)
 	default:
@@ -65,7 +70,7 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 // --needed` skips packages already present.
 func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
-		if err := installDeps(tool, d, true); err != nil {
+		if err := installDeps(tool, d, true, opts.AssumeYes); err != nil {
 			return err
 		}
 		fmt.Printf("[dry-run] would update %s via %s\n", tool.Name, tool.Installer)
@@ -74,7 +79,7 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	// Re-run deps before update so a tool that grew a new dependency in the
 	// catalog gets it on next `berserk update <tool>`. pacman --needed and
 	// apt are idempotent on already-present packages.
-	if err := installDeps(tool, d, false); err != nil {
+	if err := installDeps(tool, d, false, opts.AssumeYes); err != nil {
 		return fmt.Errorf("installing deps for %s: %w", tool.Name, err)
 	}
 	switch tool.Installer {
@@ -85,7 +90,7 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	case "gem":
 		return GemUpgrade(tool)
 	case "system":
-		return SystemUpdate(tool, d)
+		return SystemUpdate(tool, d, opts.AssumeYes)
 	case "custom":
 		// Re-running the install script is the standard upgrade path.
 		return CustomInstall(tool)
@@ -94,7 +99,7 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	}
 }
 
-func Remove(tool registry.Tool, d distro.Distro, installDir string) error {
+func Remove(tool registry.Tool, d distro.Distro, opts Options) error {
 	switch tool.Installer {
 	case "pipx":
 		return runCmd("pipx", "uninstall", tool.Name)
@@ -120,7 +125,7 @@ func Remove(tool registry.Tool, d distro.Distro, installDir string) error {
 		return runCmd("npm", "uninstall", "-g", pkg)
 
 	case "binary":
-		return removeBinary(tool.Name, installDir)
+		return removeBinary(tool.Name, opts.InstallDir)
 
 	case "system":
 		switch d {
@@ -131,13 +136,23 @@ func Remove(tool registry.Tool, d distro.Distro, installDir string) error {
 			}
 			// -Rns: also remove unused dependencies (-s) and skip saving
 			// pacman backup files for the package's config (-n).
-			return runCmd("sudo", "pacman", "-Rns", pkg)
+			args := []string{"pacman", "-Rns"}
+			if opts.AssumeYes {
+				args = append(args, "--noconfirm")
+			}
+			args = append(args, pkg)
+			return runPkgMgrCmd(opts.AssumeYes, args...)
 		case distro.Kali, distro.Parrot, distro.Debian:
 			pkg := tool.DebianPackage
 			if pkg == "" {
 				pkg = tool.Name
 			}
-			return runCmd("sudo", "apt", "remove", pkg)
+			args := []string{"apt", "remove"}
+			if opts.AssumeYes {
+				args = append(args, "-y")
+			}
+			args = append(args, pkg)
+			return runPkgMgrCmd(opts.AssumeYes, args...)
 		default:
 			return fmt.Errorf("system installer: unsupported distro %s", d)
 		}

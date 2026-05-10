@@ -35,6 +35,11 @@ var updateCmd = &cobra.Command{
 		if updateBackend != "" && (len(args) > 0 || updateProfile != "") {
 			return fmt.Errorf("--backend only applies to the no-arg update sweep; drop it when passing tool names or --profile")
 		}
+		// --profile and positional args also conflict — silently picking
+		// one over the other would mask user intent.
+		if updateProfile != "" && len(args) > 0 {
+			return fmt.Errorf("--profile and explicit tool names are mutually exclusive")
+		}
 
 		reg, d, opts, err := loadContext()
 		if err != nil {
@@ -61,15 +66,11 @@ var updateCmd = &cobra.Command{
 			if len(unknown) > 0 {
 				return fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
 			}
-			for _, t := range tools {
-				printProgress("Updating %s...", t.Name)
-				if err := installer.Update(t, d, opts); err != nil {
-					printErr("%s: %v", t.Name, err)
-					failed.Add(1)
-				} else {
-					printOK("%s updated", t.Name)
-				}
-			}
+			// Parity with install: drop tools not configured for this
+			// distro instead of letting them error deep in pacman/apt.
+			tools = filterByDistro(tools, d)
+			// Parity with install + the --profile branch: honor parallel.
+			failed.Store(updateAll(tools, d, opts, reg.Config.Parallel))
 		case updateProfile != "":
 			tools, err := reg.ToolsForProfile(updateProfile)
 			if err != nil {
@@ -78,7 +79,9 @@ var updateCmd = &cobra.Command{
 			tools = filterByDistro(tools, d)
 			failed.Store(updateAll(tools, d, opts, reg.Config.Parallel))
 		default:
-			printProgress("Updating all backends...")
+			if !opts.DryRun {
+				printProgress("Updating all backends...")
+			}
 			failed.Store(updateAllBackends(reg, d, opts, updateBackend))
 		}
 
@@ -98,6 +101,18 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 	want := func(name string) bool {
 		return only == "" || only == name
 	}
+
+	// Dry-run path is a pure-print operation — listing what would happen
+	// per backend. We do this first so we don't have to plumb opts.DryRun
+	// through every goroutine below.
+	if opts.DryRun {
+		return dryRunUpdateAllBackends(reg, want)
+	}
+
+	// Load state once, before any goroutine launches. Putting it here
+	// avoids a future race if a pipx/cargo/npm goroutine later grows
+	// state-reading logic, and lets us hold printMu around the warning.
+	st := loadStateOrWarn()
 
 	var (
 		wg     sync.WaitGroup
@@ -130,8 +145,6 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 			}
 		}(b)
 	}
-
-	st := loadStateOrWarn()
 
 	if want("go") {
 		wg.Add(1)
@@ -192,23 +205,72 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 	return n
 }
 
+// dryRunUpdateAllBackends prints the work the no-arg sweep WOULD do
+// without touching any pkg manager or running any goroutine. The bug it
+// closes: previously the sweep ignored opts.DryRun entirely and called
+// pipx upgrade-all, cargo install-update -a, sudo npm update -g, etc.
+// regardless — an extremely surprising "dry-run".
+func dryRunUpdateAllBackends(reg *registry.Registry, want func(string) bool) int32 {
+	st := loadStateOrWarn()
+	if want("pipx") {
+		fmt.Println("[dry-run] would run: pipx upgrade-all")
+	}
+	if want("cargo") {
+		fmt.Println("[dry-run] would run: cargo install-update -a")
+	}
+	if want("npm") {
+		fmt.Println("[dry-run] would run: sudo npm update -g")
+	}
+	if want("go") {
+		for _, t := range reg.Tools {
+			if t.Installer != "go" {
+				continue
+			}
+			if st != nil && !st.Has(t.Name) {
+				continue
+			}
+			fmt.Printf("[dry-run] would update go tool: %s\n", t.Name)
+		}
+	}
+	if want("gem") {
+		for _, t := range reg.Tools {
+			if t.Installer != "gem" {
+				continue
+			}
+			if st != nil && !st.Has(t.Name) {
+				continue
+			}
+			fmt.Printf("[dry-run] would update gem: %s\n", t.Name)
+		}
+	}
+	return 0
+}
+
 func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, parallel bool) int32 {
 	var failed atomic.Int32
 
 	doOne := func(t registry.Tool) {
-		printMu.Lock()
-		printProgress("Updating %s...", t.Name)
-		printMu.Unlock()
+		// On dry-run, installer.Update prints its own "[dry-run] would
+		// update X via Y" line. Wrapping it in "Updating..." +
+		// "X updated" would falsely imply the tool actually changed.
+		if !opts.DryRun {
+			printMu.Lock()
+			printProgress("Updating %s...", t.Name)
+			printMu.Unlock()
+		}
 		if err := installer.Update(t, d, opts); err != nil {
 			failed.Add(1)
 			printMu.Lock()
 			printErr("%s: %v", t.Name, err)
 			printMu.Unlock()
-		} else {
-			printMu.Lock()
-			printOK("%s updated", t.Name)
-			printMu.Unlock()
+			return
 		}
+		if opts.DryRun {
+			return
+		}
+		printMu.Lock()
+		printOK("%s updated", t.Name)
+		printMu.Unlock()
 	}
 
 	if !parallel {

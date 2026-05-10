@@ -44,7 +44,9 @@ func depsFor(tool registry.Tool, d distro.Distro) []string {
 // current distro before the main installer runs. Batched into a single
 // pacman/apt invocation — N subprocess calls would re-resolve the package
 // universe N times. Returns nil with no work when no deps are declared.
-func installDeps(tool registry.Tool, d distro.Distro, dryRun bool) error {
+// assumeYes adds `--noconfirm` (pacman) or `-y` (apt); off by default
+// because non-interactive mode hides legitimate conflict prompts.
+func installDeps(tool registry.Tool, d distro.Distro, dryRun, assumeYes bool) error {
 	deps := depsFor(tool, d)
 	if len(deps) == 0 {
 		return nil
@@ -58,11 +60,19 @@ func installDeps(tool registry.Tool, d distro.Distro, dryRun bool) error {
 	fmt.Fprintf(os.Stderr, "  Installing deps for %s: %v\n", tool.Name, deps)
 	switch d {
 	case distro.Arch:
-		args := append([]string{"pacman", "-S", "--needed"}, deps...)
-		return runCmd("sudo", args...)
+		args := []string{"pacman", "-S", "--needed"}
+		if assumeYes {
+			args = append(args, "--noconfirm")
+		}
+		args = append(args, deps...)
+		return runPkgMgrCmd(assumeYes, args...)
 	case distro.Kali, distro.Parrot, distro.Debian:
-		args := append([]string{"apt", "install"}, deps...)
-		return runCmd("sudo", args...)
+		args := []string{"apt", "install"}
+		if assumeYes {
+			args = append(args, "-y")
+		}
+		args = append(args, deps...)
+		return runPkgMgrCmd(assumeYes, args...)
 	default:
 		// depsFor returned non-nil for an unknown distro — shouldn't happen,
 		// but surface it loudly rather than silently skipping the user's deps.

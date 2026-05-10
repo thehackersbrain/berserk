@@ -269,13 +269,21 @@ func extractFromTar(tr *tar.Reader, binaryName, dest string) error {
 	return fmt.Errorf("binary %q not found in archive", binaryName)
 }
 
-//nolint:errcheck
-func writeTarEntry(r io.Reader, dest string) error {
+// writeTarEntry copies r into dest. The deferred Close error is captured
+// because that's where ENOSPC and other late write failures actually
+// surface — io.Copy returns success for buffered bytes, and the final
+// flush only happens in Close. Without this, a full disk would silently
+// produce a truncated binary that downstream code happily marks installed.
+func writeTarEntry(r io.Reader, dest string) (err error) {
 	out, err := os.Create(dest)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if cerr := out.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing %s: %w", dest, cerr)
+		}
+	}()
 	_, err = io.Copy(out, r)
 	return err
 }
@@ -309,19 +317,24 @@ func moveFile(src, dst string) error {
 	return copyFile(src, dst)
 }
 
-//nolint:errcheck
-func copyFile(src, dst string) error {
+// copyFile mirrors writeTarEntry's Close-error handling. See its comment
+// for why the deferred Close is captured rather than silently dropped.
+func copyFile(src, dst string) (err error) {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer in.Close() //nolint:errcheck
 
 	out, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if cerr := out.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing %s: %w", dst, cerr)
+		}
+	}()
 
 	_, err = io.Copy(out, in)
 	return err

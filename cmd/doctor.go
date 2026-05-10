@@ -17,8 +17,16 @@ type backend struct {
 	binPath     func() string
 }
 
+// home joins rel onto the user's home directory. Returns "" when the
+// home dir can't be resolved — callers must check, otherwise we'd happily
+// write to relative paths in the cwd (filepath.Join("", ".bashrc") =
+// ".bashrc"), which is the kind of footgun that surprises users who run
+// berserk via `sudo` without -E.
 func home(rel string) string {
-	h, _ := os.UserHomeDir()
+	h, err := os.UserHomeDir()
+	if err != nil || h == "" {
+		return ""
+	}
 	return filepath.Join(h, rel)
 }
 
@@ -111,9 +119,12 @@ func loginShellRC() string {
 // (and only that one) if it isn't already present.
 func appendToPATH(binDir string) error {
 	rc := loginShellRC()
+	if rc == "" {
+		return fmt.Errorf("could not resolve home directory; set $HOME and rerun")
+	}
 
 	existing, _ := os.ReadFile(rc)
-	if strings.Contains(string(existing), binDir) {
+	if pathAlreadyExports(string(existing), binDir) {
 		return nil
 	}
 
@@ -241,6 +252,40 @@ var doctorCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// pathAlreadyExports reports whether rcContent contains a non-comment
+// reference to binDir as a complete PATH segment. Plain
+// strings.Contains gave false positives — `/home/me/.cargo/bin` appeared
+// to match a line containing `/home/me/.cargo/bin-old`, so doctor would
+// silently skip the addition and the user's PATH stayed broken.
+func pathAlreadyExports(rcContent, binDir string) bool {
+	for _, line := range strings.Split(rcContent, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		idx := 0
+		for {
+			j := strings.Index(line[idx:], binDir)
+			if j < 0 {
+				break
+			}
+			end := idx + j + len(binDir)
+			// Match only when binDir is followed by a PATH segment
+			// boundary: end-of-string, colon (next segment), or a
+			// quote (closing the PATH= literal).
+			if end >= len(line) {
+				return true
+			}
+			switch line[end] {
+			case ':', '"', '\'':
+				return true
+			}
+			idx = end
+		}
+	}
+	return false
 }
 
 func bulletItem(success bool, text string) pterm.BulletListItem {

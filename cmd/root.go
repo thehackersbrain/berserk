@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -32,6 +33,9 @@ const defaultConfigDir = "/usr/share/berserk"
 
 func init() {
 	rootCmd.PersistentFlags().String("config", "", "config directory holding config.yaml and tool catalog yaml files (default "+defaultConfigDir+")")
+	// --yes/-y maps to pacman's --noconfirm and apt's -y; off by default so
+	// the underlying pkg mgr can still prompt on conflicts/replacements.
+	rootCmd.PersistentFlags().BoolP("yes", "y", false, "assume yes to system pkg mgr prompts (pacman --noconfirm / apt -y)")
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 }
 
@@ -67,9 +71,17 @@ func loadContext() (*registry.Registry, distro.Distro, installer.Options, error)
 
 	installer.SetVerbose(reg.Config.Verbose)
 
+	// `--yes` is persistent on rootCmd, so any subcommand inherits it.
+	// Lookup-then-bool keeps the rest of the codebase off cobra types.
+	var assumeYes bool
+	if f := rootCmd.PersistentFlags().Lookup("yes"); f != nil {
+		assumeYes, _ = strconv.ParseBool(f.Value.String())
+	}
+
 	opts := installer.Options{
 		InstallDir:  installDir,
 		GithubToken: token,
+		AssumeYes:   assumeYes,
 	}
 
 	return reg, d, opts, nil

@@ -32,6 +32,17 @@ var installCmd = &cobra.Command{
 	Use:   "install [tool...]",
 	Short: "Install one or more tools",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// --all and --profile are already mutually exclusive via cobra.
+		// Catch the orthogonal case: positional args alongside either
+		// flag silently dropped the args before, which masked user
+		// intent.
+		if installAll && len(args) > 0 {
+			return fmt.Errorf("--all takes no positional args; drop the tool names")
+		}
+		if installProfile != "" && len(args) > 0 {
+			return fmt.Errorf("--profile takes no positional args; drop the tool names")
+		}
+
 		reg, d, opts, err := loadContext()
 		if err != nil {
 			return err

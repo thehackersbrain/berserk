@@ -63,7 +63,7 @@ var removeCmd = &cobra.Command{
 			}
 
 			printProgress("Removing %s...", t.Name)
-			if err := installer.Remove(*t, d, opts.InstallDir); err != nil {
+			if err := installer.Remove(*t, d, opts); err != nil {
 				printWarn("failed to remove %s: %v", t.Name, err)
 				failed++
 				continue

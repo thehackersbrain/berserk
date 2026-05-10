@@ -85,8 +85,13 @@ func addGem(s Snapshot) {
 	if err != nil {
 		return
 	}
-	// gem list output: "name (1.0.0, 2.0.0)"
+	// gem list output: "name (1.0.0, 2.0.0)" preceded by a header line
+	// like "*** LOCAL GEMS ***". Without the prefix-skip, the snapshot
+	// gains a phantom entry keyed on "***".
 	for _, line := range strings.Split(string(out), "\n") {
+		if line == "" || strings.HasPrefix(line, "*") {
+			continue
+		}
 		if idx := strings.IndexByte(line, ' '); idx > 0 {
 			name := line[:idx]
 			if _, ok := s[name]; !ok {
