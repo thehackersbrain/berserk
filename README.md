@@ -13,6 +13,14 @@ make install   # installs the binary to /usr/local/bin
 berserk sync   # clones the tools catalog to /usr/share/berserk
 ```
 
+or with go
+
+```bash
+go install -v github.com/thehackersbrain/berserk@latest
+```
+
+> keep in mind that go install put binaries into `$HOME/go/bin` by default, but doing `berserk self-update` will put the berserk binary in `/usr/local/bin/`.
+
 Or do it by hand:
 
 ```bash
