@@ -7,20 +7,13 @@ func Gem(tool registry.Tool) error {
 	if pkg == "" {
 		pkg = tool.Name
 	}
-	return runCmd("gem", "install", pkg)
+	return runCmd("gem", "install", "--user-install", pkg)
 }
 
-// GemUpgrade upgrades a single gem to the latest version. `gem install`
-// won't bump an installed gem's version, so `update` is needed for the
-// per-tool update path.
 func GemUpgrade(tool registry.Tool) error {
 	pkg := tool.Package
 	if pkg == "" {
 		pkg = tool.Name
 	}
-	return runCmd("gem", "update", pkg)
-}
-
-func UpdateGem() error {
-	return runCmd("gem", "update")
+	return runCmd("gem", "update", "--user-install", pkg)
 }

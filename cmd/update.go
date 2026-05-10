@@ -14,6 +14,7 @@ import (
 var (
 	updateProfile string
 	updateDryRun  bool
+	updateBackend string
 )
 
 var updateCmd = &cobra.Command{
@@ -52,7 +53,7 @@ var updateCmd = &cobra.Command{
 			failed.Store(int32(updateAll(tools, d, opts, reg.Config.Parallel)))
 		default:
 			printProgress("Updating all backends...")
-			failed.Store(int32(updateAllBackends(reg, d, opts)))
+			failed.Store(int32(updateAllBackends(reg, d, opts, updateBackend)))
 		}
 
 		if n := failed.Load(); n > 0 {
@@ -62,16 +63,14 @@ var updateCmd = &cobra.Command{
 	},
 }
 
-func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.Options) int {
+func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.Options, only string) int {
 	type backendFn struct {
 		name string
 		fn   func() error
 	}
-	backends := []backendFn{
-		{"pipx", installer.UpdatePipx},
-		{"cargo", installer.UpdateCargo},
-		{"gem", installer.UpdateGem},
-		{"npm", installer.UpdateNpm},
+
+	want := func(name string) bool {
+		return only == "" || only == name
 	}
 
 	var (
@@ -80,7 +79,14 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 		failed int
 	)
 
-	for _, b := range backends {
+	for _, b := range []backendFn{
+		{"pipx", installer.UpdatePipx},
+		{"cargo", installer.UpdateCargo},
+		{"npm", installer.UpdateNpm},
+	} {
+		if !want(b.name) {
+			continue
+		}
 		wg.Add(1)
 		go func(b backendFn) {
 			defer wg.Done()
@@ -100,31 +106,58 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 		}(b)
 	}
 
-	// Reinstall all go tools @latest
 	st := loadStateOrWarn()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for _, t := range reg.Tools {
-			if t.Installer != "go" {
-				continue
-			}
-			if st != nil && !st.Has(t.Name) {
-				continue // skip go tools the user never installed
-			}
-			mu.Lock()
-			printProgress("Updating go tool: %s", t.Name)
-			mu.Unlock()
-			if err := installer.Go(t); err != nil {
+
+	if want("go") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for _, t := range reg.Tools {
+				if t.Installer != "go" {
+					continue
+				}
+				if st != nil && !st.Has(t.Name) {
+					continue
+				}
 				mu.Lock()
-				printWarn("go update %s: %v", t.Name, err)
-				failed++
+				printProgress("Updating go tool: %s", t.Name)
 				mu.Unlock()
+				if err := installer.Go(t); err != nil {
+					mu.Lock()
+					printWarn("go update %s: %v", t.Name, err)
+					failed++
+					mu.Unlock()
+				}
 			}
-		}
-	}()
+		}()
+	}
+
+	if want("gem") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for _, t := range reg.Tools {
+				if t.Installer != "gem" {
+					continue
+				}
+				if st != nil && !st.Has(t.Name) {
+					continue
+				}
+				mu.Lock()
+				printProgress("Updating gem: %s", t.Name)
+				mu.Unlock()
+				if err := installer.GemUpgrade(t); err != nil {
+					mu.Lock()
+					printWarn("gem update %s: %v", t.Name, err)
+					failed++
+					mu.Unlock()
+				}
+			}
+		}()
+	}
 
 	wg.Wait()
+
 	if failed == 0 {
 		printOK("All backends updated")
 	} else {
@@ -176,6 +209,7 @@ func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, p
 
 func init() {
 	updateCmd.Flags().StringVarP(&updateProfile, "profile", "p", "", "update all tools in a profile")
+	updateCmd.Flags().StringVarP(&updateBackend, "backend", "b", "", "only update a specific backend (pipx, cargo, npm, go, gem)")
 	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "show what would be updated without doing it")
 	rootCmd.AddCommand(updateCmd)
 }
