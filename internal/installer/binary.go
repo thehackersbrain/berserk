@@ -66,14 +66,11 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 		pattern = tool.Name
 	}
 
-	var downloadURL, assetName string
-	for _, a := range release.Assets {
-		if strings.Contains(a.Name, pattern) {
-			downloadURL = a.BrowserDownloadURL
-			assetName = a.Name
-			break
-		}
-	}
+	// Pick the best asset name match, preferring runnable artifacts over
+	// auxiliary files. A simple `strings.Contains` would happily download
+	// `tool-linux-amd64.sha256` before `tool-linux-amd64` if the upstream
+	// happens to list it first.
+	downloadURL, assetName := pickAsset(release.Assets, pattern)
 	if downloadURL == "" {
 		return fmt.Errorf("no asset matching %q found for %s", pattern, tool.Name)
 	}
@@ -146,9 +143,76 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 	}
 
 	if needsSudo {
-		return runRoot("install", "-m", "0755", stagingDest, finalDest)
+		return runCmd("sudo", "install", "-m", "0755", stagingDest, finalDest)
 	}
 	return nil
+}
+
+// pickAsset scores every asset whose name contains pattern and returns the
+// best (download URL, name) pair, preferring real binaries / archives over
+// signatures, checksums, source bundles, and provenance files. Returns
+// ("", "") if nothing matches at all.
+func pickAsset(assets []ghAsset, pattern string) (string, string) {
+	skipSuffixes := []string{
+		".sha256", ".sha512", ".sha1", ".md5", ".asc", ".sig", ".pem",
+		".pub", ".cert", ".intoto.jsonl", ".sbom", ".sbom.json", ".prov",
+	}
+	skipPatterns := []string{
+		"-checksums", ".checksums", "checksums.txt", "SHA256SUMS",
+		".source.", "-source-", ".srpm",
+	}
+
+	preferredSuffixes := []string{
+		".tar.gz", ".tgz", ".zip", ".tar.xz", ".tar.bz2", ".tar.zst",
+	}
+
+	type candidate struct {
+		url, name string
+		score     int
+	}
+	var best candidate
+	best.score = -1
+
+	for _, a := range assets {
+		if !strings.Contains(a.Name, pattern) {
+			continue
+		}
+
+		// Hard skip: signatures, checksums, sources.
+		skip := false
+		lower := strings.ToLower(a.Name)
+		for _, s := range skipSuffixes {
+			if strings.HasSuffix(lower, s) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			for _, s := range skipPatterns {
+				if strings.Contains(lower, strings.ToLower(s)) {
+					skip = true
+					break
+				}
+			}
+		}
+		if skip {
+			continue
+		}
+
+		score := 1
+		for _, s := range preferredSuffixes {
+			if strings.HasSuffix(lower, s) {
+				score = 10
+				break
+			}
+		}
+
+		if score > best.score {
+			best = candidate{url: a.BrowserDownloadURL, name: a.Name, score: score}
+		}
+	}
+
+	return best.url, best.name
 }
 
 // extractTarGz finds the first file named `binaryName` inside a .tar.gz and

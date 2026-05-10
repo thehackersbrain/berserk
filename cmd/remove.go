@@ -20,6 +20,19 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
+		// Load state once. Dry-run skips it for parity with install — nothing
+		// is going to be persisted, so reading the file is just I/O for a
+		// value we won't use.
+		var st *state.State
+		if !removeDryRun {
+			s, err := state.Load()
+			if err != nil {
+				printWarn("loading install state: %v (state will not be updated)", err)
+			} else {
+				st = s
+			}
+		}
+
 		for _, name := range args {
 			t, ok := reg.FindTool(name)
 			if !ok {
@@ -38,12 +51,10 @@ var removeCmd = &cobra.Command{
 				continue
 			}
 
-			if st, err := state.Load(); err == nil {
+			if st != nil {
 				if err := st.Remove(t.Name); err != nil {
 					printWarn("removed %s, but updating state failed: %v", t.Name, err)
 				}
-			} else {
-				printWarn("removed %s, but loading state failed: %v", t.Name, err)
 			}
 
 			printOK("%s removed", t.Name)

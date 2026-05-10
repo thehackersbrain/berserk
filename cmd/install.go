@@ -5,12 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/spf13/cobra"
 	"github.com/thehackersbrain/berserk/internal/conflict"
 	"github.com/thehackersbrain/berserk/internal/distro"
 	"github.com/thehackersbrain/berserk/internal/installer"
 	"github.com/thehackersbrain/berserk/internal/registry"
 	"github.com/thehackersbrain/berserk/internal/state"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -48,8 +48,13 @@ var installCmd = &cobra.Command{
 				tools = append(tools, *t)
 			}
 		default:
-			return cmd.Help()
+			return fmt.Errorf("no tools specified — pass tool names, --profile, or --all")
 		}
+
+		// Drop tools that don't fit the current distro (e.g. system-installer
+		// tools whose only configured package field is for the other distro).
+		// Surface a single skipped-list summary rather than N failed installs.
+		tools = filterByDistro(tools, d)
 
 		// Real installs need a state handle so we can record successes;
 		// dry-run skips it because nothing is actually getting installed.
@@ -65,13 +70,15 @@ var installCmd = &cobra.Command{
 	},
 }
 
-var printMu sync.Mutex
-
 func runInstalls(tools []registry.Tool, d distro.Distro, opts installer.Options, parallel bool, st *state.State) error {
+	// Cache "is this tool already managed by some other package manager?"
+	// once instead of spawning N×M subprocesses inside installOne.
+	snap := conflict.LoadInstalled()
+
 	var failed atomic.Int32
 
 	doOne := func(t registry.Tool) {
-		if err := installOne(t, d, opts, st); err != nil {
+		if err := installOne(t, d, opts, st, snap); err != nil {
 			printMu.Lock()
 			printErr("%s: %v", t.Name, err)
 			printMu.Unlock()
@@ -101,8 +108,8 @@ func runInstalls(tools []registry.Tool, d distro.Distro, opts installer.Options,
 	return nil
 }
 
-func installOne(t registry.Tool, d distro.Distro, opts installer.Options, st *state.State) error {
-	if c := conflict.Check(t.Name); c != "" {
+func installOne(t registry.Tool, d distro.Distro, opts installer.Options, st *state.State, snap conflict.Snapshot) error {
+	if c := snap.Check(t.Name); c != "" {
 		printMu.Lock()
 		printWarn("%s already installed via %s", t.Name, c)
 		printWarn("Use 'berserk remove %s' first if you want berserk to manage it", t.Name)
@@ -141,6 +148,46 @@ func installOne(t registry.Tool, d distro.Distro, opts installer.Options, st *st
 	printOK("%s installed", t.Name)
 	printMu.Unlock()
 	return nil
+}
+
+// filterByDistro drops tools that can't run on the detected distro. Only
+// `system` installer tools are filtered: when both arch_package and
+// debian_package are unset, the package defaults to t.Name on whichever
+// distro applies and we leave the tool in. When at least one is set, only
+// the matching distro keeps the tool.
+func filterByDistro(tools []registry.Tool, d distro.Distro) []registry.Tool {
+	out := make([]registry.Tool, 0, len(tools))
+	var skipped []string
+	for _, t := range tools {
+		if toolFitsDistro(t, d) {
+			out = append(out, t)
+		} else {
+			skipped = append(skipped, t.Name)
+		}
+	}
+	if len(skipped) > 0 {
+		printInfo("Skipping %d tool(s) not configured for %s: %v", len(skipped), d, skipped)
+	}
+	return out
+}
+
+func toolFitsDistro(t registry.Tool, d distro.Distro) bool {
+	if t.Installer != "system" {
+		return true
+	}
+	archSet := t.ArchPackage != ""
+	debianSet := t.DebianPackage != ""
+	if !archSet && !debianSet {
+		return true
+	}
+	switch d {
+	case distro.Arch:
+		return archSet
+	case distro.Kali, distro.Parrot, distro.Debian:
+		return debianSet
+	default:
+		return false
+	}
 }
 
 func init() {

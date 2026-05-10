@@ -50,9 +50,10 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 
 // Update upgrades an already-installed tool. Most installers' Install paths
 // are idempotent (go install replaces, cargo install is a no-op or upgrade,
-// binary refetches latest, system uses --needed). pipx and gem need the
-// explicit upgrade command — `pipx install` errors when the package is
-// already installed, and `gem install` won't bump versions.
+// binary refetches latest). pipx, gem, and system need explicit upgrade
+// commands — `pipx install` errors on "already installed", `gem install`
+// won't bump versions, and `pacman -S --needed` skips packages already
+// present.
 func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
 		fmt.Printf("[dry-run] would update %s via %s\n", tool.Name, tool.Installer)
@@ -63,6 +64,8 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 		return PipxReinstall(tool)
 	case "gem":
 		return GemUpgrade(tool)
+	case "system":
+		return SystemUpdate(tool, d)
 	case "custom":
 		// Re-running the install script is the standard upgrade path.
 		return CustomInstall(tool)
@@ -111,13 +114,15 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 			if pkg == "" {
 				pkg = tool.Name
 			}
-			return runRoot("pacman", "-R", "--noconfirm", pkg)
+			// -Rns: also remove unused dependencies (-s) and skip saving
+			// pacman backup files for the package's config (-n).
+			return runCmd("sudo", "pacman", "-Rns", "--noconfirm", pkg)
 		case distro.Kali, distro.Parrot, distro.Debian:
 			pkg := tool.DebianPackage
 			if pkg == "" {
 				pkg = tool.Name
 			}
-			return runRoot("apt-get", "remove", "-y", pkg)
+			return runCmd("sudo", "apt-get", "remove", "-y", pkg)
 		}
 
 	case "custom":

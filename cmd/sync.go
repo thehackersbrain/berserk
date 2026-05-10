@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 
@@ -17,12 +19,16 @@ var syncCatalog = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync tools catalog (clone if absent, pull if present)",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		_, err := os.Stat(catalogTarget)
 		var gcmd *exec.Cmd
-		if _, err := os.Stat(catalogTarget); os.IsNotExist(err) {
-			gcmd = exec.Command("sudo", "git", "clone", catalogRepo, catalogTarget)
-		} else {
+		switch {
+		case err == nil:
 			fmt.Fprintf(os.Stderr, "Pulling latest catalog in %s...\n", catalogTarget)
 			gcmd = exec.Command("sudo", "git", "-C", catalogTarget, "pull")
+		case errors.Is(err, fs.ErrNotExist):
+			gcmd = exec.Command("sudo", "git", "clone", catalogRepo, catalogTarget)
+		default:
+			return fmt.Errorf("checking %s: %w", catalogTarget, err)
 		}
 
 		gcmd.Stdout = os.Stdout

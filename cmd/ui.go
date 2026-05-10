@@ -2,12 +2,19 @@ package cmd
 
 import (
 	"os"
+	"sync"
 
 	"github.com/pterm/pterm"
 )
 
 // pterm auto-detects NO_COLOR, TERM=dumb, and non-TTY stdout, so the manual
 // ANSI suppression logic the package used to carry is no longer needed.
+
+// printMu serializes terminal output across goroutines (parallel installs
+// and parallel backend updates). Both single-line prints and multi-line
+// groups (e.g. "X already installed via Y" + "Use 'berserk remove' first")
+// hold this mutex so neither bleeds into output from another tool.
+var printMu sync.Mutex
 
 func init() {
 	// pterm's default writer is stdout for every printer, including Error and

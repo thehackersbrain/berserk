@@ -16,6 +16,7 @@
 package registry
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -66,10 +67,12 @@ type Config struct {
 	InstallDir  string `yaml:"install_dir"`
 	Parallel    bool   `yaml:"parallel"`
 	Verbose     bool   `yaml:"verbose"`
-	UseSudo     bool   `yaml:"use_sudo"`
 }
 
 type Registry struct {
+	// Config is loaded by LoadDir from `<dir>/config.yaml` (flat keys, no
+	// `config:` wrapper) and merged on top of an in-code default. Single-file
+	// Load still accepts a wrapped `config:` block for the test fixtures.
 	Config     Config     `yaml:"config"`
 	Tools      []Tool     `yaml:"tools"`
 	Profiles   []Profile  `yaml:"profiles"`
@@ -109,15 +112,17 @@ func Load(path string) (*Registry, error) {
 	return &reg, nil
 }
 
-// LoadDir reads every *.yaml / *.yml file in dir and all subdirectories,
-// except config.yaml, and merges the tools, profiles, and categories sections
-// into one Registry. Cross-file duplicates (same tool name, alias, profile
-// name, or category name) are errors so silent collisions surface immediately.
+// LoadDir reads every *.yaml / *.yml file in dir and all subdirectories
+// and merges the tools, profiles, and categories sections into one
+// Registry. Cross-file duplicates (same tool name, alias, profile name,
+// or category name) are errors so silent collisions surface immediately.
 // Files are merged in lexical order (depth-first walk) for determinism.
 //
-// config.yaml is intentionally skipped — it carries Registry.Config and is
-// loaded separately by the cmd layer (via viper) so the two concerns stay
-// decoupled and the dir can hold arbitrary catalog files.
+// config.yaml is special-cased: instead of being parsed as a catalog
+// (which would have to wrap its keys under `config:` to avoid the
+// validator complaining about a tool entry with no name), it is read
+// once at top-level into Registry.Config using the flat schema users
+// actually write.
 func LoadDir(dir string) (*Registry, error) {
 	var paths []string
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -149,6 +154,22 @@ func LoadDir(dir string) (*Registry, error) {
 	sort.Strings(paths)
 
 	merged := &Registry{}
+
+	// Load config.yaml (flat schema, optional). Catalog files never carry
+	// runtime config so this is the one file we read separately, before
+	// folding everything else in.
+	configPath := filepath.Join(dir, "config.yaml")
+	if data, err := os.ReadFile(configPath); err == nil {
+		expanded := os.ExpandEnv(string(data))
+		var cfg Config
+		if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", configPath, err)
+		}
+		merged.Config = cfg
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("reading %s: %w", configPath, err)
+	}
+
 	seenTool := map[string]string{}
 	seenProfile := map[string]string{}
 	seenCategory := map[string]string{}
@@ -268,8 +289,8 @@ func (r *Registry) Validate() error {
 				errs = append(errs, fmt.Sprintf("%s: binary installer needs 'repo'", ctx))
 			}
 		case "custom":
-			if t.Steps == nil {
-				errs = append(errs, fmt.Sprintf("%s: custom installer needs 'steps' array", ctx))
+			if len(t.Steps) == 0 {
+				errs = append(errs, fmt.Sprintf("%s: custom installer needs a non-empty 'steps' array", ctx))
 			}
 		case "cargo", "gem", "npm", "system":
 			// package/system fields default to t.Name, so always valid

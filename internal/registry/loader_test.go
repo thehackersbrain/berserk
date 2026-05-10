@@ -520,10 +520,12 @@ func TestLoadDirMergesFiles(t *testing.T) {
 	}
 }
 
-func TestLoadDirSkipsConfigYAML(t *testing.T) {
+func TestLoadDirReadsConfigYAML(t *testing.T) {
 	dir := writeFiles(t, map[string]string{
-		"config.yaml": `github_token: ignored
-install_dir: /should/not/be/loaded
+		"config.yaml": `github_token: secret
+install_dir: /opt/bin
+parallel: true
+verbose: true
 `,
 		"tools.yaml": `tools:
   - name: a
@@ -538,10 +540,39 @@ install_dir: /should/not/be/loaded
 	if len(reg.Tools) != 1 || reg.Tools[0].Name != "a" {
 		t.Errorf("tools = %v, want [a]", reg.Tools)
 	}
-	// config.yaml must not pollute the registry — any populated Config field
-	// here would mean we accidentally parsed it as a tool catalog.
+	// config.yaml must be loaded into Registry.Config — these keys drive
+	// runtime behaviour and used to silently no-op when only viper read them.
+	if reg.Config.GithubToken != "secret" {
+		t.Errorf("github_token = %q, want %q", reg.Config.GithubToken, "secret")
+	}
+	if reg.Config.InstallDir != "/opt/bin" {
+		t.Errorf("install_dir = %q, want /opt/bin", reg.Config.InstallDir)
+	}
+	if !reg.Config.Parallel {
+		t.Error("parallel should be true")
+	}
+	if !reg.Config.Verbose {
+		t.Error("verbose should be true")
+	}
+}
+
+func TestLoadDirNoConfigYAMLUsesDefaults(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"tools.yaml": `tools:
+  - name: a
+    installer: pipx
+    repo: x/a
+`,
+	})
+	reg, err := LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir error: %v", err)
+	}
 	if reg.Config.GithubToken != "" {
-		t.Errorf("config.yaml leaked into registry: github_token=%q", reg.Config.GithubToken)
+		t.Errorf("github_token = %q, want empty", reg.Config.GithubToken)
+	}
+	if reg.Config.Parallel {
+		t.Error("parallel should default to false")
 	}
 }
 

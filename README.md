@@ -85,7 +85,7 @@ berserk self-update                  update berserk itself
 berserk version
 ```
 
-Global flags: `--config <dir>` (config directory, default `/usr/share/berserk`). Set `NO_COLOR=1` to disable ANSI colors. Set `BERSERK_NO_SUDO=1` to refuse sudo escalation (default: berserk auto-prepends sudo for system-package and `/usr/local/bin` writes).
+Global flags: `--config <dir>` (config directory, default `/usr/share/berserk`). Set `NO_COLOR=1` to disable ANSI colors. Operations that need root (system-package installs, `/usr/local/bin` writes, `berserk sync`) shell out to `sudo` directly; if you're already root or `sudo` is unavailable, run those commands as root.
 
 ## Profiles & categories
 

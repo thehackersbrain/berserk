@@ -50,6 +50,7 @@ var updateCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			tools = filterByDistro(tools, d)
 			failed.Store(int32(updateAll(tools, d, opts, reg.Config.Parallel)))
 		default:
 			printProgress("Updating all backends...")
@@ -75,7 +76,6 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 
 	var (
 		wg     sync.WaitGroup
-		mu     sync.Mutex
 		failed int
 	)
 
@@ -90,18 +90,18 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 		wg.Add(1)
 		go func(b backendFn) {
 			defer wg.Done()
-			mu.Lock()
+			printMu.Lock()
 			printProgress("Updating %s packages...", b.name)
-			mu.Unlock()
+			printMu.Unlock()
 			if err := b.fn(); err != nil {
-				mu.Lock()
+				printMu.Lock()
 				printWarn("%s update: %v", b.name, err)
 				failed++
-				mu.Unlock()
+				printMu.Unlock()
 			} else {
-				mu.Lock()
+				printMu.Lock()
 				printOK("%s updated", b.name)
-				mu.Unlock()
+				printMu.Unlock()
 			}
 		}(b)
 	}
@@ -119,14 +119,14 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 				if st != nil && !st.Has(t.Name) {
 					continue
 				}
-				mu.Lock()
+				printMu.Lock()
 				printProgress("Updating go tool: %s", t.Name)
-				mu.Unlock()
+				printMu.Unlock()
 				if err := installer.Go(t); err != nil {
-					mu.Lock()
+					printMu.Lock()
 					printWarn("go update %s: %v", t.Name, err)
 					failed++
-					mu.Unlock()
+					printMu.Unlock()
 				}
 			}
 		}()
@@ -143,14 +143,14 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 				if st != nil && !st.Has(t.Name) {
 					continue
 				}
-				mu.Lock()
+				printMu.Lock()
 				printProgress("Updating gem: %s", t.Name)
-				mu.Unlock()
+				printMu.Unlock()
 				if err := installer.GemUpgrade(t); err != nil {
-					mu.Lock()
+					printMu.Lock()
 					printWarn("gem update %s: %v", t.Name, err)
 					failed++
-					mu.Unlock()
+					printMu.Unlock()
 				}
 			}
 		}()
@@ -167,24 +167,21 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 }
 
 func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, parallel bool) int {
-	var (
-		mu     sync.Mutex
-		failed int
-	)
+	var failed int
 
 	doOne := func(t registry.Tool) {
-		mu.Lock()
+		printMu.Lock()
 		printProgress("Updating %s...", t.Name)
-		mu.Unlock()
+		printMu.Unlock()
 		if err := installer.Update(t, d, opts); err != nil {
-			mu.Lock()
+			printMu.Lock()
 			printErr("%s: %v", t.Name, err)
 			failed++
-			mu.Unlock()
+			printMu.Unlock()
 		} else {
-			mu.Lock()
+			printMu.Lock()
 			printOK("%s updated", t.Name)
-			mu.Unlock()
+			printMu.Unlock()
 		}
 	}
 

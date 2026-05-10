@@ -29,12 +29,17 @@ var listCmd = &cobra.Command{
 				return nil
 			}
 
-			sort.Slice(reg.Categories, func(i, j int) bool {
-				return reg.Categories[i].Name < reg.Categories[j].Name
+			idx := make([]int, len(reg.Categories))
+			for i := range idx {
+				idx[i] = i
+			}
+			sort.Slice(idx, func(a, b int) bool {
+				return reg.Categories[idx[a]].Name < reg.Categories[idx[b]].Name
 			})
 
 			data := pterm.TableData{{"CATEGORY", "TOOLS", "DESCRIPTION"}}
-			for _, c := range reg.Categories {
+			for _, i := range idx {
+				c := reg.Categories[i]
 				data = append(data, []string{
 					c.Name,
 					pterm.Sprintf("%d", reg.CategoryToolCount(c.Name)),

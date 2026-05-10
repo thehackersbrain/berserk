@@ -87,70 +87,60 @@ func pathDirs() map[string]bool {
 	return dirs
 }
 
-// shellRCs returns all shell rc files that exist on disk.
-func shellRCs() []string {
-	candidates := []string{
-		home(".bashrc"),
-		home(".zshrc"),
-		home(".config/fish/config.fish"),
-		home(".kshrc"),
-		home(".profile"),
+// loginShellRC returns the rc file for the user's $SHELL. If $SHELL is
+// unset or unrecognised, it falls back to ~/.profile (the POSIX default
+// any sh-compatible login shell will source). Picking exactly one file
+// avoids the "duplicate PATH export in both .bashrc and .zshrc" footgun
+// when shells chain-source each other.
+func loginShellRC() string {
+	switch filepath.Base(os.Getenv("SHELL")) {
+	case "bash":
+		return home(".bashrc")
+	case "zsh":
+		return home(".zshrc")
+	case "fish":
+		return home(".config/fish/config.fish")
+	case "ksh", "ksh93", "mksh":
+		return home(".kshrc")
+	default:
+		return home(".profile")
 	}
-	var found []string
-	for _, rc := range candidates {
-		if _, err := os.Stat(rc); err == nil {
-			found = append(found, rc)
-		}
-	}
-	return found
 }
 
-// appendToPATH writes the bin dir export to every shell rc file that doesn't
-// already contain it.
+// appendToPATH writes the bin dir export to the user's login-shell rc
+// (and only that one) if it isn't already present.
 func appendToPATH(binDir string) error {
-	rcs := shellRCs()
-	if len(rcs) == 0 {
-		return fmt.Errorf("no known shell rc files found — add %s to PATH manually", binDir)
+	rc := loginShellRC()
+
+	existing, _ := os.ReadFile(rc)
+	if strings.Contains(string(existing), binDir) {
+		return nil
 	}
 
-	var errs []string
-	var updated []string
-
-	for _, rc := range rcs {
-		existing, _ := os.ReadFile(rc)
-		if strings.Contains(string(existing), binDir) {
-			continue
-		}
-
-		var line string
-		if strings.HasSuffix(rc, "config.fish") {
-			line = fmt.Sprintf("fish_add_path %s", binDir)
-		} else {
-			line = fmt.Sprintf(`export PATH="%s:$PATH"`, binDir)
-		}
-
-		f, err := os.OpenFile(rc, os.O_APPEND|os.O_WRONLY, 0o644)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", rc, err))
-			continue
-		}
-		_, err = fmt.Fprintf(f, "\n# added by berserk doctor\n%s\n", line)
-		f.Close() //nolint:errcheck
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", rc, err))
-			continue
-		}
-		updated = append(updated, rc)
+	if err := os.MkdirAll(filepath.Dir(rc), 0o755); err != nil {
+		return fmt.Errorf("preparing %s: %w", filepath.Dir(rc), err)
 	}
 
-	if len(updated) > 0 {
-		pterm.Success.Printfln("added %s to PATH in: %s",
-			pterm.Bold.Sprint(binDir), strings.Join(updated, ", "))
-		pterm.Info.Printfln("reload with: source %s", updated[0])
+	var line string
+	if strings.HasSuffix(rc, "config.fish") {
+		line = fmt.Sprintf("fish_add_path %s", binDir)
+	} else {
+		line = fmt.Sprintf(`export PATH="%s:$PATH"`, binDir)
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("some rc files could not be updated:\n  %s", strings.Join(errs, "\n  "))
+
+	f, err := os.OpenFile(rc, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return fmt.Errorf("%s: %w", rc, err)
 	}
+	defer f.Close() //nolint:errcheck
+
+	if _, err := fmt.Fprintf(f, "\n# added by berserk doctor\n%s\n", line); err != nil {
+		return fmt.Errorf("%s: %w", rc, err)
+	}
+
+	pterm.Success.Printfln("added %s to PATH in: %s",
+		pterm.Bold.Sprint(binDir), rc)
+	pterm.Info.Printfln("reload with: source %s", rc)
 	return nil
 }
 
