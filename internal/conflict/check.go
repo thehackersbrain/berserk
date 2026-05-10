@@ -24,23 +24,21 @@ func (s Snapshot) Check(name string) string {
 
 // LoadInstalled queries every supported source-based manager once and
 // returns the merged snapshot. Errors from any single manager are
-// swallowed — a system without `pacman` shouldn't break conflict
-// detection on Debian.
+// swallowed — a system without `pipx` shouldn't break conflict detection
+// on a system that has cargo or gem.
 //
-// We deliberately don't check dpkg/apt here: berserk focuses on
-// source-based installs, and the Debian package universe is too broad
-// to give meaningful "already installed via X" warnings without a flood
-// of false positives (every system has hundreds of apt-managed
-// packages, almost none of them tools the user wants berserk to manage).
+// We deliberately don't check dpkg or pacman here: berserk focuses on
+// source-based installs, and the OS package universe is too broad to give
+// meaningful "already installed via X" warnings without a flood of false
+// positives (every system has hundreds of OS-managed packages, almost
+// none of them tools the user wants berserk to manage).
 //
-// Precedence is first-write-wins per name. Order tracks "more likely
-// to be the user's choice".
+// Precedence is first-write-wins per name.
 func LoadInstalled() Snapshot {
 	s := Snapshot{}
 	addPipx(s)
 	addCargo(s)
 	addGem(s)
-	addPacman(s)
 	return s
 }
 
@@ -93,20 +91,6 @@ func addGem(s Snapshot) {
 			name := line[:idx]
 			if _, ok := s[name]; !ok {
 				s[name] = "gem"
-			}
-		}
-	}
-}
-
-func addPacman(s Snapshot) {
-	out, err := exec.Command("pacman", "-Qq").Output()
-	if err != nil {
-		return
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if name := strings.TrimSpace(line); name != "" {
-			if _, ok := s[name]; !ok {
-				s[name] = "pacman"
 			}
 		}
 	}

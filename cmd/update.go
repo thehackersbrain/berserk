@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -17,10 +18,18 @@ var (
 	updateBackend string
 )
 
+var validUpdateBackends = map[string]bool{
+	"pipx": true, "cargo": true, "npm": true, "go": true, "gem": true,
+}
+
 var updateCmd = &cobra.Command{
 	Use:   "update [tool...]",
 	Short: "Update tools to latest versions",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if updateBackend != "" && !validUpdateBackends[updateBackend] {
+			return fmt.Errorf("unknown backend %q (expected one of: pipx, cargo, npm, go, gem)", updateBackend)
+		}
+
 		reg, d, opts, err := loadContext()
 		if err != nil {
 			return err
@@ -31,18 +40,28 @@ var updateCmd = &cobra.Command{
 
 		switch {
 		case len(args) > 0:
+			// Resolve every name up front so a typo on one tool doesn't strand
+			// the user mid-batch — same UX as install.
+			var tools []registry.Tool
+			var unknown []string
 			for _, name := range args {
 				t, ok := reg.FindTool(name)
 				if !ok {
-					printWarn("unknown tool: %s", name)
+					unknown = append(unknown, name)
 					continue
 				}
-				printProgress("Updating %s...", name)
-				if err := installer.Update(*t, d, opts); err != nil {
-					printErr("%s: %v", name, err)
+				tools = append(tools, *t)
+			}
+			if len(unknown) > 0 {
+				return fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
+			}
+			for _, t := range tools {
+				printProgress("Updating %s...", t.Name)
+				if err := installer.Update(t, d, opts); err != nil {
+					printErr("%s: %v", t.Name, err)
 					failed.Add(1)
 				} else {
-					printOK("%s updated", name)
+					printOK("%s updated", t.Name)
 				}
 			}
 		case updateProfile != "":

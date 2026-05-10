@@ -33,10 +33,12 @@ var removeCmd = &cobra.Command{
 			}
 		}
 
+		var failed int
 		for _, name := range args {
 			t, ok := reg.FindTool(name)
 			if !ok {
 				printWarn("unknown tool: %s, skipping", name)
+				failed++
 				continue
 			}
 
@@ -48,6 +50,7 @@ var removeCmd = &cobra.Command{
 			printProgress("Removing %s...", t.Name)
 			if err := installer.Remove(*t, d); err != nil {
 				printWarn("failed to remove %s: %v", t.Name, err)
+				failed++
 				continue
 			}
 
@@ -60,6 +63,9 @@ var removeCmd = &cobra.Command{
 			printOK("%s removed", t.Name)
 		}
 
+		if failed > 0 {
+			return fmt.Errorf("%d tool(s) failed to remove", failed)
+		}
 		return nil
 	},
 }

@@ -50,12 +50,12 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 	}
 }
 
-// Update upgrades an already-installed tool. Most installers' Install paths
-// are idempotent (go install replaces, cargo install is a no-op or upgrade,
-// binary refetches latest). pipx, gem, and system need explicit upgrade
-// commands — `pipx install` errors on "already installed", `gem install`
-// won't bump versions, and `pacman -S --needed` skips packages already
-// present.
+// Update upgrades an already-installed tool. Some installers' Install paths
+// are idempotent on upgrade (go install replaces, binary refetches latest);
+// pipx, cargo, gem, and system need explicit upgrade commands — `pipx install`
+// errors on "already installed", `cargo install` skips already-installed
+// crates without --force, `gem install` won't bump versions, and `pacman -S
+// --needed` skips packages already present.
 func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
 		fmt.Printf("[dry-run] would update %s via %s\n", tool.Name, tool.Installer)
@@ -64,6 +64,8 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	switch tool.Installer {
 	case "pipx":
 		return PipxReinstall(tool)
+	case "cargo":
+		return CargoReinstall(tool)
 	case "gem":
 		return GemUpgrade(tool)
 	case "system":
@@ -155,10 +157,15 @@ func removeGoBinary(name string) error {
 		return nil
 	}
 
-	// Fall back to PATH lookup
+	// PATH fallback only fires for binaries that resolve back to a
+	// Go-managed directory. Without that gate, a system-installed binary
+	// of the same name (apt, brew, etc.) would get deleted instead.
 	path, err := exec.LookPath(name)
 	if err != nil {
 		return fmt.Errorf("%s not found in GOBIN (%s) or PATH", name, gobin)
+	}
+	if filepath.Clean(filepath.Dir(path)) != filepath.Clean(gobin) {
+		return fmt.Errorf("%s on PATH at %s is not under GOBIN (%s); refusing to remove", name, path, gobin)
 	}
 	return os.Remove(path)
 }
