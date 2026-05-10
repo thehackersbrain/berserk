@@ -17,6 +17,7 @@ package registry
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -108,35 +109,37 @@ func Load(path string) (*Registry, error) {
 	return &reg, nil
 }
 
-// LoadDir reads every *.yaml / *.yml file in dir except config.yaml and merges
-// the tools, profiles, and categories sections into one Registry. Cross-file
-// duplicates (same tool name, alias, profile name, or category name) are
-// errors so silent collisions surface immediately. Files merge in lexical
-// order for determinism.
+// LoadDir reads every *.yaml / *.yml file in dir and all subdirectories,
+// except config.yaml, and merges the tools, profiles, and categories sections
+// into one Registry. Cross-file duplicates (same tool name, alias, profile
+// name, or category name) are errors so silent collisions surface immediately.
+// Files are merged in lexical order (depth-first walk) for determinism.
 //
-// config.yaml is intentionally skipped here — it carries Registry.Config and
-// is loaded separately by the cmd layer (via viper) so the two concerns stay
+// config.yaml is intentionally skipped — it carries Registry.Config and is
+// loaded separately by the cmd layer (via viper) so the two concerns stay
 // decoupled and the dir can hold arbitrary catalog files.
 func LoadDir(dir string) (*Registry, error) {
-	entries, err := os.ReadDir(dir)
+	var paths []string
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("walking config dir: %w", err)
+		}
+		if d.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		if ext != ".yaml" && ext != ".yml" {
+			return nil
+		}
+		base := strings.TrimSuffix(d.Name(), filepath.Ext(d.Name()))
+		if base == "config" {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("reading config dir %s: %w", dir, err)
-	}
-
-	var paths []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		ext := strings.ToLower(filepath.Ext(name))
-		if ext != ".yaml" && ext != ".yml" {
-			continue
-		}
-		if base := strings.TrimSuffix(name, filepath.Ext(name)); base == "config" {
-			continue
-		}
-		paths = append(paths, filepath.Join(dir, name))
 	}
 
 	if len(paths) == 0 {
