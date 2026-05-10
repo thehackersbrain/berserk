@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/thehackersbrain/berserk/internal/distro"
@@ -57,7 +58,7 @@ func loadContext() (*registry.Registry, distro.Distro, installer.Options, error)
 	dir := configDir()
 	reg, err := registry.LoadDir(dir)
 	if err != nil {
-		return nil, 0, installer.Options{}, fmt.Errorf("loading registry from %s: %w", dir, err)
+		return nil, 0, installer.Options{}, fmt.Errorf("loading registry from %s: %w\n\trun %s to get the tools catalog", dir, err, pterm.Green("berserk catalog"))
 	}
 
 	d := distro.Detect()
