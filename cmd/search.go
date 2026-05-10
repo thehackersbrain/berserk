@@ -121,9 +121,9 @@ func truncRunes(s string, n int) string {
 
 func init() {
 	searchCmd.Flags().StringVarP(&searchCategory, "category", "c", "", "filter by category")
-	searchCmd.Flags().StringVarP(&searchInstaller, "installer", "i", "", "filter by installer")
+	searchCmd.Flags().StringVarP(&searchInstaller, "installer", "b", "", "filter by installer")
 	searchCmd.Flags().StringVarP(&searchProfile, "profile", "p", "", "search within a profile")
-	searchCmd.Flags().BoolVar(&searchInstalled, "installed", false, "only show tools already on $PATH")
+	searchCmd.Flags().BoolVarP(&searchInstalled, "installed", "i", false, "only show tools already on $PATH")
 	searchCmd.Flags().BoolVar(&searchAvailable, "available", false, "only show tools not yet installed")
 	searchCmd.Flags().IntVarP(&searchLimit, "limit", "n", 0, "cap the number of results (0 = no cap)")
 	searchCmd.MarkFlagsMutuallyExclusive("installed", "available")

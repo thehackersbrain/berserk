@@ -10,7 +10,6 @@ import (
 )
 
 var (
-	listInstalled  bool
 	listCategories bool
 	listProfiles   bool
 )
@@ -95,29 +94,14 @@ var listCmd = &cobra.Command{
 
 		st := loadStateOrWarn()
 		present := installedSet(reg.Tools, st)
-		tools := reg.Tools
 
-		if listInstalled {
-			tools = filterByPresence(tools, present)
-		}
-
-		if len(tools) == 0 {
+		if len(reg.Tools) == 0 {
 			pterm.Info.Println("No tools found.")
 			return nil
 		}
 
-		return renderToolTable(tools, true, present)
+		return renderToolTable(reg.Tools, true, present)
 	},
-}
-
-func filterByPresence(tools []registry.Tool, present map[string]bool) []registry.Tool {
-	out := make([]registry.Tool, 0, len(tools))
-	for _, t := range tools {
-		if present[t.Name] {
-			out = append(out, t)
-		}
-	}
-	return out
 }
 
 func renderToolTable(tools []registry.Tool, showStatus bool, installed map[string]bool) error {
@@ -150,6 +134,5 @@ func renderToolTable(tools []registry.Tool, showStatus bool, installed map[strin
 func init() {
 	listCmd.Flags().BoolVarP(&listProfiles, "profiles", "p", false, "list all profiles")
 	listCmd.Flags().BoolVarP(&listCategories, "categories", "c", false, "list all categories")
-	listCmd.Flags().BoolVar(&listInstalled, "installed", false, "only show installed tools")
 	rootCmd.AddCommand(listCmd)
 }
