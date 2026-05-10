@@ -13,11 +13,19 @@ import (
 	"github.com/thehackersbrain/berserk/internal/registry"
 )
 
+var rootDockerClean bool
+
 var rootCmd = &cobra.Command{
 	Use:               "berserk",
 	Short:             "Curated offensive security tool manager",
 	Long:              "Package Manager for Security Tools, always from original sources, always latest.",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if rootDockerClean {
+			return runDockerClean(cmd)
+		}
+		return cmd.Help()
+	},
 }
 
 func Execute() {
@@ -36,6 +44,7 @@ func init() {
 	// --yes/-y maps to pacman's --noconfirm and apt's -y; off by default so
 	// the underlying pkg mgr can still prompt on conflicts/replacements.
 	rootCmd.PersistentFlags().BoolP("yes", "y", false, "assume yes to system pkg mgr prompts (pacman --noconfirm / apt -y)")
+	rootCmd.Flags().BoolVar(&rootDockerClean, "docker-clean", false, "stop all containers, remove all images, prune, delete ~/berserk volume data")
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 }
 

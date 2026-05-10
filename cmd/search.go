@@ -5,6 +5,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/thehackersbrain/berserk/internal/docker"
 	"github.com/thehackersbrain/berserk/internal/registry"
 )
 
@@ -20,16 +21,19 @@ var (
 var searchCmd = &cobra.Command{
 	Use:   "search [query]",
 	Short: "Search the catalog for tools you can install",
-	Long: `Search tools by name, alias, category, or description.
+	Long: `Search tools and Docker containers by name.
 
-Filters compose with the query and with each other:
-  berserk search nmap                  # name/alias/desc match
-  berserk search --category recon      # everything tagged 'recon'
+A text query matches tools (name/alias/description) AND Docker containers
+(name). Tool-specific filters narrow only the tool results.
+
+  berserk search nmap                  # tools + containers named 'nmap'
+  berserk search --category recon      # tools tagged 'recon' (no containers)
   berserk search ad --installer pipx   # 'ad' tools installed via pipx
-  berserk search --available web       # web tools you don't have yet
+  berserk search --available web       # web tools not yet installed
   berserk search --profile red-team    # search within a profile
 
-Results show a green ✓ for tools already on your $PATH.`,
+Tool results show a green ✓ for tools already on your $PATH.
+Use 'berserk run <name>' to launch a matched container.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, _, _, err := loadContext()
@@ -70,27 +74,56 @@ Results show a green ✓ for tools already on your $PATH.`,
 		installed := installedSet(results, st, true)
 		results = filterByInstallStatus(results, installed, searchInstalled, searchAvailable)
 
-		if len(results) == 0 {
-			pterm.Info.Println("No tools matched.")
+		// Container search — only when there is a text query; tool-specific
+		// filters (--category, --installer, --profile) don't apply to containers.
+		var containerResults []docker.SearchResult
+		if opts.Query != "" {
+			groups, err := loadDockerGroups()
+			if err != nil {
+				// Real parse/IO error (not just missing dir) — surface it.
+				pterm.Warning.Printfln("docker catalog: %v", err)
+			} else {
+				containerResults = docker.Search(groups, opts.Query)
+			}
+		}
+
+		if len(results) == 0 && len(containerResults) == 0 {
+			pterm.Info.Println("No matches found.")
 			return nil
 		}
 
-		total := len(results)
-		if searchLimit > 0 && total > searchLimit {
-			results = results[:searchLimit]
+		if len(results) > 0 {
+			total := len(results)
+			if searchLimit > 0 && total > searchLimit {
+				results = results[:searchLimit]
+			}
+			if err := renderToolTable(results, true, installed); err != nil {
+				return err
+			}
+			if total > len(results) {
+				pterm.DefaultBasicText.Printfln("\nshowing %s of %s tool result(s)",
+					pterm.Bold.Sprintf("%d", len(results)),
+					pterm.Bold.Sprintf("%d", total))
+			} else {
+				pterm.DefaultBasicText.Printfln("\n%s tool result(s)", pterm.Bold.Sprintf("%d", total))
+			}
 		}
 
-		if err := renderToolTable(results, true, installed); err != nil {
-			return err
+		if len(containerResults) > 0 {
+			pterm.Println()
+			pterm.DefaultBasicText.Printfln("%s Docker container result(s)", pterm.Bold.Sprintf("%d", len(containerResults)))
+			pterm.Println()
+			for _, r := range containerResults {
+				loc := pterm.Cyan(r.GroupName)
+				if r.CategoryName != "" {
+					loc += pterm.Gray(" → ") + pterm.Magenta(r.CategoryName)
+				}
+				pterm.DefaultBasicText.Printfln("  %s", loc)
+				printContainerDetails(r.Container)
+				pterm.Println()
+			}
 		}
 
-		if total > len(results) {
-			pterm.DefaultBasicText.Printfln("\nshowing %s of %s result(s)",
-				pterm.Bold.Sprintf("%d", len(results)),
-				pterm.Bold.Sprintf("%d", total))
-		} else {
-			pterm.DefaultBasicText.Printfln("\n%s result(s)", pterm.Bold.Sprintf("%d", total))
-		}
 		return nil
 	},
 }

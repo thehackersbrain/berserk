@@ -138,6 +138,10 @@ func LoadDir(dir string) (*Registry, error) {
 			return fmt.Errorf("walking config dir: %w", err)
 		}
 		if d.IsDir() {
+			// containers/ holds the docker catalog (YAML lists, not registry maps).
+			if d.Name() == "containers" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(d.Name()))

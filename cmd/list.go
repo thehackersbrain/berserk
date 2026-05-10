@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -12,12 +13,72 @@ import (
 var (
 	listCategories bool
 	listProfiles   bool
+	listContainers bool
 )
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List tools, profiles, or categories",
+	Short: "List tools, profiles, categories, or Docker container groups",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if listContainers {
+			groups, err := loadDockerGroups()
+			if err != nil {
+				return err
+			}
+
+			var items []pterm.BulletListItem
+			for i, g := range groups {
+				items = append(items, pterm.BulletListItem{
+					Level:       0,
+					Text:        fmt.Sprintf("%d. %s", i+1, pterm.Bold.Sprint(pterm.Cyan(g.Name))),
+					BulletStyle: pterm.NewStyle(pterm.FgCyan),
+					Bullet:      "▸",
+				})
+				items = append(items, pterm.BulletListItem{
+					Level:  1,
+					Text:   pterm.Gray(g.Description),
+					Bullet: " ",
+				})
+
+				if len(g.Categories) > 0 {
+					total := 0
+					for _, cat := range g.Categories {
+						total += len(cat.Containers)
+					}
+					items = append(items, pterm.BulletListItem{
+						Level:  1,
+						Text:   pterm.Yellow(fmt.Sprintf("%d categories, %d containers", len(g.Categories), total)),
+						Bullet: " ",
+					})
+					for j, cat := range g.Categories {
+						items = append(items, pterm.BulletListItem{
+							Level:       1,
+							Text:        fmt.Sprintf("%d.%d. %s %s", i+1, j+1, pterm.Magenta(cat.Name), pterm.Gray(fmt.Sprintf("(%d containers)", len(cat.Containers)))),
+							BulletStyle: pterm.NewStyle(pterm.FgMagenta),
+							Bullet:      "▸",
+						})
+					}
+				} else {
+					items = append(items, pterm.BulletListItem{
+						Level:  1,
+						Text:   pterm.Yellow(fmt.Sprintf("%d containers", len(g.Containers))),
+						Bullet: " ",
+					})
+					for _, c := range g.Containers {
+						items = append(items, pterm.BulletListItem{
+							Level:       2,
+							Text:        pterm.Green(c.Name),
+							BulletStyle: pterm.NewStyle(pterm.FgGreen),
+							Bullet:      "▸",
+						})
+					}
+				}
+			}
+
+			pterm.Println()
+			return pterm.DefaultBulletList.WithItems(items).Render()
+		}
+
 		reg, _, _, err := loadContext()
 		if err != nil {
 			return err
@@ -98,9 +159,6 @@ var listCmd = &cobra.Command{
 		}
 
 		st := loadStateOrWarn()
-		// list's ✓ marker is "did berserk install this?" — state-only.
-		// PATH fallback would falsely claim credit for system-installed
-		// tools we never touched.
 		present := installedSet(reg.Tools, st, false)
 
 		if len(reg.Tools) == 0 {
@@ -142,6 +200,7 @@ func renderToolTable(tools []registry.Tool, showStatus bool, installed map[strin
 func init() {
 	listCmd.Flags().BoolVarP(&listProfiles, "profiles", "p", false, "list all profiles")
 	listCmd.Flags().BoolVarP(&listCategories, "categories", "c", false, "list all categories")
-	listCmd.MarkFlagsMutuallyExclusive("profiles", "categories")
+	listCmd.Flags().BoolVarP(&listContainers, "containers", "d", false, "list Docker container groups from the catalog")
+	listCmd.MarkFlagsMutuallyExclusive("profiles", "categories", "containers")
 	rootCmd.AddCommand(listCmd)
 }
