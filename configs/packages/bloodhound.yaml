@@ -1,0 +1,10 @@
+tools:
+  - name: bloodhound
+    description: "AD attack path mapping and visualization"
+    category: [ad]
+    profiles: [ad-attacks]
+    installer: custom
+    steps:
+      - "wget https://github.com/SpecterOps/bloodhound-cli/releases/latest/download/bloodhound-cli-linux-amd64.tar.gz -O /tmp/bloodhound-cli-linux-amd64.tar.gz"
+      - "tar -xzf /tmp/bloodhound-cli-linux-amd64.tar.gz -C /tmp"
+      - "sudo mv /tmp/bloodhound-cli /usr/local/bin/"
