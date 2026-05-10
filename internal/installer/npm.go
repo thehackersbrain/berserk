@@ -7,9 +7,9 @@ func Npm(tool registry.Tool) error {
 	if pkg == "" {
 		pkg = tool.Name
 	}
-	return runCmd("npm", "install", "-g", pkg)
+	return runCmd("sudo", "npm", "install", "-g", pkg)
 }
 
 func UpdateNpm() error {
-	return runCmd("npm", "update", "-g")
+	return runCmd("sudo", "npm", "update", "-g")
 }

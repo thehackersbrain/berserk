@@ -19,10 +19,10 @@ var syncCatalog = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var gcmd *exec.Cmd
 		if _, err := os.Stat(catalogTarget); os.IsNotExist(err) {
-			gcmd = exec.Command("git", "clone", catalogRepo, catalogTarget)
+			gcmd = exec.Command("sudo", "git", "clone", catalogRepo, catalogTarget)
 		} else {
 			fmt.Fprintf(os.Stderr, "Pulling latest catalog in %s...\n", catalogTarget)
-			gcmd = exec.Command("git", "-C", catalogTarget, "pull")
+			gcmd = exec.Command("sudo", "git", "-C", catalogTarget, "pull")
 		}
 
 		gcmd.Stdout = os.Stdout
