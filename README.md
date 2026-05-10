@@ -28,6 +28,14 @@ sudo install -d /usr/share/berserk
 berserk sync
 ```
 
+### Kali Linux
+
+Make sure you have these deps installed
+
+```bash
+sudo apt install golang-go cargo pipx gem ruby-dev make openssl libssl-dev -y
+```
+
 `berserk` reads its config directory on every invocation. By default that's
 `/usr/share/berserk`; override with `--config <dir>`. The directory holds:
 
