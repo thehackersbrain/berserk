@@ -28,9 +28,17 @@ sudo install -d /usr/share/berserk
 berserk sync
 ```
 
+### Arch Linux
+
+Make sure these deps are installed
+
+```bash
+sudo pacman -Syy rust cargo nodejs npm ruby git python-pipx go pkgconf openssl base-devel cmake make --noconfirm
+```
+
 ### Kali Linux
 
-Make sure you have these deps installed
+Make sure these deps are installed
 
 ```bash
 sudo apt install golang-go cargo pipx gem ruby-dev make openssl libssl-dev -y
