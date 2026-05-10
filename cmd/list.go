@@ -1,40 +1,101 @@
 package cmd
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/pterm/pterm"
-	"github.com/thehackersbrain/berserk/internal/registry"
 	"github.com/spf13/cobra"
+	"github.com/thehackersbrain/berserk/internal/registry"
 )
 
 var (
-	listInstalled bool
-	listProfile   string
+	listInstalled  bool
+	listCategories bool
+	listProfiles   bool
 )
 
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List available or installed tools",
+	Short: "List tools, profiles, or categories",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		reg, _, _, err := loadContext()
 		if err != nil {
 			return err
 		}
 
-		var tools []registry.Tool
+		if listCategories {
+			if len(reg.Categories) == 0 {
+				pterm.Info.Println("No categories defined.")
+				return nil
+			}
 
-		if listProfile != "" {
-			tools, err = reg.ToolsForProfile(listProfile)
-			if err != nil {
+			sort.Slice(reg.Categories, func(i, j int) bool {
+				return reg.Categories[i].Name < reg.Categories[j].Name
+			})
+
+			data := pterm.TableData{{"CATEGORY", "TOOLS", "DESCRIPTION"}}
+			for _, c := range reg.Categories {
+				data = append(data, []string{
+					c.Name,
+					pterm.Sprintf("%d", reg.CategoryToolCount(c.Name)),
+					c.Description,
+				})
+			}
+
+			if err := pterm.DefaultTable.WithHasHeader().WithHeaderStyle(pterm.NewStyle(pterm.Bold)).WithData(data).Render(); err != nil {
 				return err
 			}
-		} else {
-			tools = reg.Tools
+
+			pterm.Println()
+			n := len(reg.Categories)
+			suffix := "ies"
+			if n == 1 {
+				suffix = "y"
+			}
+			pterm.DefaultBasicText.Printfln("%s categor%s — filter with: berserk search --category <name>",
+				pterm.Bold.Sprintf("%d", n), suffix)
+			return nil
+		}
+
+		if listProfiles {
+			if len(reg.Profiles) == 0 {
+				pterm.Info.Println("No profiles defined.")
+				return nil
+			}
+
+			idx := make([]int, len(reg.Profiles))
+			for i := range reg.Profiles {
+				idx[i] = i
+			}
+			sort.Slice(idx, func(a, b int) bool {
+				return reg.Profiles[idx[a]].Name < reg.Profiles[idx[b]].Name
+			})
+
+			data := pterm.TableData{{"PROFILE", "TOOLS", "INCLUDES", "DESCRIPTION"}}
+			for _, i := range idx {
+				p := reg.Profiles[i]
+				data = append(data, []string{
+					p.Name,
+					pterm.Sprintf("%d", reg.ProfileMemberCount(p.Name)),
+					strings.Join(p.Includes, ", "),
+					truncRunes(p.Description, 60),
+				})
+			}
+
+			if err := pterm.DefaultTable.WithHasHeader().WithHeaderStyle(pterm.NewStyle(pterm.Bold)).WithData(data).Render(); err != nil {
+				return err
+			}
+
+			pterm.Println()
+			pterm.DefaultBasicText.Printfln("%s profile(s) — install one with: berserk install --profile <name>",
+				pterm.Bold.Sprintf("%d", len(reg.Profiles)))
+			return nil
 		}
 
 		st := loadStateOrWarn()
-		present := installedSet(tools, st)
+		present := installedSet(reg.Tools, st)
+		tools := reg.Tools
 
 		if listInstalled {
 			tools = filterByPresence(tools, present)
@@ -59,8 +120,6 @@ func filterByPresence(tools []registry.Tool, present map[string]bool) []registry
 	return out
 }
 
-// renderToolTable renders a catalogue table. When showStatus is true, a leading
-// column flags installed tools using the precomputed `installed` set.
 func renderToolTable(tools []registry.Tool, showStatus bool, installed map[string]bool) error {
 	header := []string{"NAME", "INSTALLER", "CATEGORIES", "DESCRIPTION"}
 	if showStatus {
@@ -89,7 +148,8 @@ func renderToolTable(tools []registry.Tool, showStatus bool, installed map[strin
 }
 
 func init() {
+	listCmd.Flags().BoolVarP(&listProfiles, "profiles", "p", false, "list all profiles")
+	listCmd.Flags().BoolVarP(&listCategories, "categories", "c", false, "list all categories")
 	listCmd.Flags().BoolVar(&listInstalled, "installed", false, "only show installed tools")
-	listCmd.Flags().StringVarP(&listProfile, "profile", "p", "", "filter by profile")
 	rootCmd.AddCommand(listCmd)
 }

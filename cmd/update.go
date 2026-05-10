@@ -5,10 +5,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/spf13/cobra"
 	"github.com/thehackersbrain/berserk/internal/distro"
 	"github.com/thehackersbrain/berserk/internal/installer"
 	"github.com/thehackersbrain/berserk/internal/registry"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -101,20 +101,25 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 	}
 
 	// Reinstall all go tools @latest
+	st := loadStateOrWarn()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		for _, t := range reg.Tools {
-			if t.Installer == "go" {
+			if t.Installer != "go" {
+				continue
+			}
+			if st != nil && !st.Has(t.Name) {
+				continue // skip go tools the user never installed
+			}
+			mu.Lock()
+			printProgress("Updating go tool: %s", t.Name)
+			mu.Unlock()
+			if err := installer.Go(t); err != nil {
 				mu.Lock()
-				printProgress("Updating go tool: %s", t.Name)
+				printWarn("go update %s: %v", t.Name, err)
+				failed++
 				mu.Unlock()
-				if err := installer.Go(t); err != nil {
-					mu.Lock()
-					printWarn("go update %s: %v", t.Name, err)
-					failed++
-					mu.Unlock()
-				}
 			}
 		}
 	}()

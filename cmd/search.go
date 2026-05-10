@@ -11,6 +11,7 @@ import (
 var (
 	searchCategory  string
 	searchInstaller string
+	searchProfile   string
 	searchInstalled bool
 	searchAvailable bool
 	searchLimit     int
@@ -26,6 +27,7 @@ Filters compose with the query and with each other:
   berserk search --category recon      # everything tagged 'recon'
   berserk search ad --installer pipx   # 'ad' tools installed via pipx
   berserk search --available web       # web tools you don't have yet
+  berserk search --profile red-team    # search within a profile
 
 Results show a green ✓ for tools already on your $PATH.`,
 	Args: cobra.MaximumNArgs(1),
@@ -43,16 +45,24 @@ Results show a green ✓ for tools already on your $PATH.`,
 			opts.Query = args[0]
 		}
 
-		// Require at least one constraint so a bare `berserk search` doesn't
-		// dump the entire catalog (use `berserk list` for that).
 		if opts.Query == "" && opts.Category == "" && opts.Installer == "" &&
-			!searchInstalled && !searchAvailable {
-			return fmt.Errorf("provide a query or at least one filter (--category, --installer, --installed, --available)")
+			searchProfile == "" && !searchInstalled && !searchAvailable {
+			return fmt.Errorf("provide a query or at least one filter (--category, --installer, --profile, --installed, --available)")
 		}
 
-		results := reg.SearchWith(opts)
+		var results []registry.Tool
 
-		// Compute install status once and reuse for both filtering and rendering.
+		if searchProfile != "" {
+			profileTools, err := reg.ToolsForProfile(searchProfile)
+			if err != nil {
+				return err
+			}
+			// Search the profile subset by matching opts against it directly.
+			results = registry.SearchSlice(profileTools, opts)
+		} else {
+			results = reg.SearchWith(opts)
+		}
+
 		st := loadStateOrWarn()
 		installed := installedSet(results, st)
 		results = filterByInstallStatus(results, installed, searchInstalled, searchAvailable)
@@ -98,8 +108,6 @@ func filterByInstallStatus(tools []registry.Tool, installed map[string]bool, onl
 	return out
 }
 
-// truncRunes shortens s to at most n display runes (not bytes) so multi-byte
-// characters in tool descriptions don't get sliced through the middle.
 func truncRunes(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {
@@ -112,8 +120,9 @@ func truncRunes(s string, n int) string {
 }
 
 func init() {
-	searchCmd.Flags().StringVarP(&searchCategory, "category", "c", "", "filter by category (e.g. web, recon, ad)")
-	searchCmd.Flags().StringVarP(&searchInstaller, "installer", "i", "", "filter by installer (pipx, go, cargo, gem, npm, binary, system, custom)")
+	searchCmd.Flags().StringVarP(&searchCategory, "category", "c", "", "filter by category")
+	searchCmd.Flags().StringVarP(&searchInstaller, "installer", "i", "", "filter by installer")
+	searchCmd.Flags().StringVarP(&searchProfile, "profile", "p", "", "search within a profile")
 	searchCmd.Flags().BoolVar(&searchInstalled, "installed", false, "only show tools already on $PATH")
 	searchCmd.Flags().BoolVar(&searchAvailable, "available", false, "only show tools not yet installed")
 	searchCmd.Flags().IntVarP(&searchLimit, "limit", "n", 0, "cap the number of results (0 = no cap)")

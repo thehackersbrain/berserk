@@ -564,3 +564,46 @@ func scoreTool(t Tool, q string) int {
 	}
 	return 0
 }
+
+// SearchSlice runs SearchWith-style scoring against an arbitrary tool slice
+// instead of the full registry. Used when the caller has already narrowed
+// the set (e.g. a profile subset).
+func SearchSlice(tools []Tool, opts SearchOpts) []Tool {
+	q := strings.ToLower(strings.TrimSpace(opts.Query))
+	cat := strings.ToLower(opts.Category)
+	inst := strings.ToLower(opts.Installer)
+
+	type scored struct {
+		tool  Tool
+		score int
+		idx   int
+	}
+	var hits []scored
+
+	for i, t := range tools {
+		if !matchesFacet(t.Category, cat) {
+			continue
+		}
+		if inst != "" && strings.ToLower(t.Installer) != inst {
+			continue
+		}
+		s := scoreTool(t, q)
+		if q != "" && s == 0 {
+			continue
+		}
+		hits = append(hits, scored{tool: t, score: s, idx: i})
+	}
+
+	sort.SliceStable(hits, func(i, j int) bool {
+		if hits[i].score != hits[j].score {
+			return hits[i].score > hits[j].score
+		}
+		return hits[i].idx < hits[j].idx
+	})
+
+	out := make([]Tool, len(hits))
+	for i, h := range hits {
+		out[i] = h.tool
+	}
+	return out
+}
