@@ -160,7 +160,3 @@ fallback so tools you installed before berserk knew about them still register.
 - `go install ...@latest` for every go-installed tool
 
 Per-tool updates (`berserk update <name>`) just re-run the install at `@latest`.
-
-## License
-
-Source available; no formal license yet!
