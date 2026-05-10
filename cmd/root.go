@@ -34,6 +34,7 @@ const defaultConfigDir = "/usr/share/berserk"
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().String("config", "", "config directory holding config.yaml and tool catalog yaml files (default "+defaultConfigDir+")")
+	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 }
 
 // configDir resolves which directory to load config and tool yaml files from.

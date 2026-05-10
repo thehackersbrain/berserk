@@ -65,5 +65,5 @@ var infoCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(infoCmd)
+	searchCmd.AddCommand(infoCmd)
 }
