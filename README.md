@@ -9,7 +9,8 @@ Curated offensive security tool manager for BerserkArch.
 ```bash
 git clone https://github.com/thehackersbrain/berserk
 cd berserk
-make install   # installs the binary to /usr/local/bin and every yaml in ./configs to /usr/share/berserk
+make install   # installs the binary to /usr/local/bin
+berserk sync   # clones the tools catalog to /usr/share/berserk
 ```
 
 Or do it by hand:
@@ -18,7 +19,7 @@ Or do it by hand:
 go build -o berserk .
 sudo install -m 0755 berserk /usr/local/bin/
 sudo install -d /usr/share/berserk
-sudo cp configs/*.yaml /usr/share/berserk/
+berserk sync
 ```
 
 `berserk` reads its config directory on every invocation. By default that's
@@ -36,7 +37,8 @@ so you can split however the maintainer prefers.
 
 ```bash
 berserk doctor                 # verify pipx, cargo, go, gem, npm are installed
-berserk list                   # browse the 49 curated tools
+berserk sync                   # fetch the latest curated tools catalog
+berserk list                   # browse the curated tools
 berserk install --profile ad-attacks
 berserk install nuclei httpx ffuf
 berserk update                 # update everything via every backend
@@ -54,14 +56,15 @@ berserk update [tool...]             update specific tools
 berserk update --profile <name>      update a profile
 berserk update                       fire all backend updaters in parallel
 berserk remove <tool>                remove a tool
-berserk list [--installed] [-p X]    list tools, optionally filtered
-berserk search [query] [-c CAT]      ranked search across name/alias/category/desc
-                  [-i INSTALLER]       (filters compose; --installed / --available
-                  [--installed]         narrow by install status)
-                  [--available]
+berserk list [-p] [-c]               list tools, profiles (-p), or categories (-c)
+berserk search [query] [filters]     ranked search across name/alias/category/desc
+                  [-c CAT]             filter by category
+                  [-b INSTALLER]       filter by installer
+                  [-p PROFILE]         search within a profile
+                  [-i]                 only show installed tools
+                  [--available]        only show tools not yet installed
 berserk info <tool>                  show source, repo, installer
-berserk profiles                     list every defined profile and its tool count
-berserk check                        audit which tools are missing
+berserk sync                         sync tools catalog (clone if absent, pull if present)
 berserk doctor                       verify all backends are available
 berserk self-update                  update berserk itself
 berserk version
@@ -105,7 +108,7 @@ or category, or a profile including an undeclared profile, is a hard error.
 Composition rolls up at query time — `red-team` automatically resolves to
 every tool in `ad-attacks ∪ web ∪ post-exploitation ∪ credentials`.
 
-Run `berserk profiles` to see all declared profiles with their resolved
+Run `berserk list --profiles` to see all declared profiles with their resolved
 member counts.
 
 ## Adding a tool
@@ -115,7 +118,7 @@ Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split fi
 | installer | required                                           | example                                                        |
 | --------- | -------------------------------------------------- | -------------------------------------------------------------- |
 | `pipx`    | `repo` or `package`                                | `repo: fortra/impacket`                                        |
-| `go`      | `repo` or `package`                                | `repo: projectdiscovery/nuclei/v3/cmd/nuclei`                  |
+| `go`    | `repo` or `package`                                | `repo: projectdiscovery/nuclei/v3/cmd/nuclei`                  |
 | `cargo`   | (`package` defaults)                               | `package: rustscan`                                            |
 | `gem`     | (`package` defaults)                               | `package: evil-winrm`                                          |
 | `npm`     | (`package` defaults)                               | `package: <pkg>`                                               |
@@ -132,13 +135,12 @@ See `configs/tools.yaml.example` for a worked entry per installer.
 
 `berserk` records every successful install in a state file at
 `$XDG_STATE_HOME/berserk/installed.yaml` (default
-`~/.local/state/berserk/installed.yaml`). `check`, `list --installed`,
-`search --installed`, and `search --available` read this file as the source
-of truth — that's how a tool like `impacket` (whose binaries are
-`smbserver.py`, `secretsdump.py`, etc., never `impacket` on PATH) is
-correctly reported as installed once berserk has installed it. PATH lookup
-is kept as a fallback so tools you installed before berserk knew about them
-still register.
+`~/.local/state/berserk/installed.yaml`). `list`, `search --installed`,
+and `search --available` read this file as the source of truth — that's
+how a tool like `impacket` (whose binaries are `smbserver.py`,
+`secretsdump.py`, etc., never `impacket` on PATH) is correctly reported
+as installed once berserk has installed it. PATH lookup is kept as a
+fallback so tools you installed before berserk knew about them still register.
 
 ## How update works
 
