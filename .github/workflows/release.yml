@@ -3,6 +3,11 @@ name: release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.2.3)"
+        required: true
 
 jobs:
   build:
@@ -30,8 +35,9 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
+          VERSION="${INPUT_VERSION:-${GITHUB_REF#refs/tags/}}"
           OUT="berserk-${{ matrix.goos }}-${{ matrix.goarch }}"
           go build \
             -trimpath \
@@ -59,8 +65,9 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
+          VERSION="${INPUT_VERSION:-${GITHUB_REF#refs/tags/}}"
           gh release create "${VERSION}" \
             --title "${VERSION}" \
             --generate-notes \
