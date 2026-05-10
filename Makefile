@@ -39,8 +39,6 @@ install: build
 	sudo mkdir -p $(DESTDIR)$(BINDIR)
 	sudo cp $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
 	sudo rm -rf $(DESTDIR)$(CONFIGDIR)
-	sudo mkdir -p $(DESTDIR)$(CONFIGDIR)
-	sudo cp -r configs/* $(DESTDIR)$(CONFIGDIR)/
 
 ## uninstall: remove files placed by `make install`
 .PHONY: uninstall
