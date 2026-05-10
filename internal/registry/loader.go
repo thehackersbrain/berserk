@@ -41,6 +41,14 @@ type Tool struct {
 	ArchPackage   string   `yaml:"arch_package"`
 	DebianPackage string   `yaml:"debian_package"`
 	Steps         []string `yaml:"steps"`
+
+	// Depends names native system packages required to install this tool
+	// (build prereqs for cargo/pipx tools, runtime libs for binary tools).
+	// Keys are distro families: "arch" (pacman), "debian" (apt — also
+	// used for Kali and Parrot). Installed via the system pkg mgr before
+	// the main install runs and NOT recorded in berserk's state file —
+	// they're prereqs, not berserk-managed tools.
+	Depends map[string][]string `yaml:"depends"`
 }
 
 // Profile is one declaration in profiles.yaml. Tools opt into a profile by

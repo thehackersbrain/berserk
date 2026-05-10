@@ -80,6 +80,11 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 		return err
 	}
 	tmpPath := tmp.Name()
+	// Defer Close so the FD doesn't leak on early-return error paths
+	// (NewRequest err, non-200 download). The explicit Close after
+	// io.Copy below is still needed because we have to flush before
+	// extractTarGz/extractZip/moveFile reads the file back.
+	defer tmp.Close() //nolint:errcheck
 	defer os.Remove(tmpPath)
 
 	dlReq, err := http.NewRequest("GET", downloadURL, nil)

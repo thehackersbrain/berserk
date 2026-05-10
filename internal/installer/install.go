@@ -24,8 +24,15 @@ func SetVerbose(v bool) { Verbose = v }
 
 func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
+		if err := installDeps(tool, d, true); err != nil {
+			return err
+		}
 		fmt.Printf("[dry-run] would install %s via %s\n", tool.Name, tool.Installer)
 		return nil
+	}
+
+	if err := installDeps(tool, d, false); err != nil {
+		return fmt.Errorf("installing deps for %s: %w", tool.Name, err)
 	}
 
 	switch tool.Installer {
@@ -58,8 +65,17 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 // --needed` skips packages already present.
 func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	if opts.DryRun {
+		if err := installDeps(tool, d, true); err != nil {
+			return err
+		}
 		fmt.Printf("[dry-run] would update %s via %s\n", tool.Name, tool.Installer)
 		return nil
+	}
+	// Re-run deps before update so a tool that grew a new dependency in the
+	// catalog gets it on next `berserk update <tool>`. pacman --needed and
+	// apt are idempotent on already-present packages.
+	if err := installDeps(tool, d, false); err != nil {
+		return fmt.Errorf("installing deps for %s: %w", tool.Name, err)
 	}
 	switch tool.Installer {
 	case "pipx":
@@ -78,7 +94,7 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 	}
 }
 
-func Remove(tool registry.Tool, d distro.Distro) error {
+func Remove(tool registry.Tool, d distro.Distro, installDir string) error {
 	switch tool.Installer {
 	case "pipx":
 		return runCmd("pipx", "uninstall", tool.Name)
@@ -104,12 +120,7 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 		return runCmd("npm", "uninstall", "-g", pkg)
 
 	case "binary":
-		// Find via PATH and delete
-		path, err := exec.LookPath(tool.Name)
-		if err != nil {
-			return fmt.Errorf("%s not found in PATH", tool.Name)
-		}
-		return os.Remove(path)
+		return removeBinary(tool.Name, installDir)
 
 	case "system":
 		switch d {
@@ -120,13 +131,13 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 			}
 			// -Rns: also remove unused dependencies (-s) and skip saving
 			// pacman backup files for the package's config (-n).
-			return runCmd("sudo", "pacman", "-Rns", "--noconfirm", pkg)
+			return runCmd("sudo", "pacman", "-Rns", pkg)
 		case distro.Kali, distro.Parrot, distro.Debian:
 			pkg := tool.DebianPackage
 			if pkg == "" {
 				pkg = tool.Name
 			}
-			return runCmd("sudo", "apt", "remove", "-y", pkg)
+			return runCmd("sudo", "apt", "remove", pkg)
 		default:
 			return fmt.Errorf("system installer: unsupported distro %s", d)
 		}
@@ -135,6 +146,29 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 		return fmt.Errorf("%s was installed via a custom script; remove it manually", tool.Name)
 	}
 	return fmt.Errorf("cannot remove %s (installer: %s)", tool.Name, tool.Installer)
+}
+
+// removeBinary deletes a binary-installer artifact. Prefer the staged path
+// at <installDir>/<name>; fall back to PATH only when the resolved entry
+// lives under installDir. Without that gate, a system-installed binary of
+// the same name (apt, brew, etc.) shadowing ours on PATH would get deleted.
+func removeBinary(name, installDir string) error {
+	if installDir == "" {
+		installDir = "/usr/local/bin"
+	}
+	target := filepath.Join(installDir, name)
+	if err := os.Remove(target); err == nil {
+		return nil
+	}
+
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return fmt.Errorf("%s not found in installDir (%s) or PATH", name, installDir)
+	}
+	if filepath.Clean(filepath.Dir(path)) != filepath.Clean(installDir) {
+		return fmt.Errorf("%s on PATH at %s is not under installDir (%s); refusing to remove", name, path, installDir)
+	}
+	return os.Remove(path)
 }
 
 func removeGoBinary(name string) error {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/thehackersbrain/berserk/internal/installer"
+	"github.com/thehackersbrain/berserk/internal/registry"
 	"github.com/thehackersbrain/berserk/internal/state"
 )
 
@@ -15,7 +16,7 @@ var removeCmd = &cobra.Command{
 	Short: "Remove one or more installed tools",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		reg, d, _, err := loadContext()
+		reg, d, opts, err := loadContext()
 		if err != nil {
 			return err
 		}
@@ -33,28 +34,44 @@ var removeCmd = &cobra.Command{
 			}
 		}
 
+		backend := installer.SystemBackend(d)
+
 		var failed int
 		for _, name := range args {
 			t, ok := reg.FindTool(name)
+			isFallback := false
 			if !ok {
-				printWarn("unknown tool: %s, skipping", name)
-				failed++
-				continue
+				if backend == "" {
+					printWarn("unknown tool: %s, skipping", name)
+					failed++
+					continue
+				}
+				printInfo("%s not found in Berserk Registry", name)
+				printInfo("Falling back to %s backend", backend)
+				synthetic := registry.Tool{Name: name, Installer: "system"}
+				t = &synthetic
+				isFallback = true
 			}
 
 			if removeDryRun {
-				fmt.Printf("[dry-run] would remove %s (installer: %s)\n", t.Name, t.Installer)
+				if isFallback {
+					fmt.Printf("[dry-run] would remove %s via system fallback\n", t.Name)
+				} else {
+					fmt.Printf("[dry-run] would remove %s (installer: %s)\n", t.Name, t.Installer)
+				}
 				continue
 			}
 
 			printProgress("Removing %s...", t.Name)
-			if err := installer.Remove(*t, d); err != nil {
+			if err := installer.Remove(*t, d, opts.InstallDir); err != nil {
 				printWarn("failed to remove %s: %v", t.Name, err)
 				failed++
 				continue
 			}
 
-			if st != nil {
+			// State only tracks registry-managed installs, so fallback removes
+			// have nothing to update there.
+			if !isFallback && st != nil {
 				if err := st.Remove(t.Name); err != nil {
 					printWarn("removed %s, but updating state failed: %v", t.Name, err)
 				}

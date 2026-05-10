@@ -29,6 +29,12 @@ var updateCmd = &cobra.Command{
 		if updateBackend != "" && !validUpdateBackends[updateBackend] {
 			return fmt.Errorf("unknown backend %q (expected one of: pipx, cargo, npm, go, gem)", updateBackend)
 		}
+		// --backend only narrows the all-backends sweep; combining it with
+		// explicit tool names or --profile is a category error, not a
+		// silent no-op.
+		if updateBackend != "" && (len(args) > 0 || updateProfile != "") {
+			return fmt.Errorf("--backend only applies to the no-arg update sweep; drop it when passing tool names or --profile")
+		}
 
 		reg, d, opts, err := loadContext()
 		if err != nil {

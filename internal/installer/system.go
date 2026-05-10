@@ -14,13 +14,13 @@ func System(tool registry.Tool, d distro.Distro) error {
 		if pkg == "" {
 			pkg = tool.Name
 		}
-		return runCmd("sudo", "pacman", "-S", "--noconfirm", "--needed", pkg)
+		return runCmd("sudo", "pacman", "-S", "--needed", pkg)
 	case distro.Kali, distro.Parrot, distro.Debian:
 		pkg := tool.DebianPackage
 		if pkg == "" {
 			pkg = tool.Name
 		}
-		return runCmd("sudo", "apt", "install", "-y", pkg)
+		return runCmd("sudo", "apt", "install", pkg)
 	default:
 		return fmt.Errorf("system installer: unsupported distro %s", d)
 	}
@@ -37,7 +37,7 @@ func SystemUpdate(tool registry.Tool, d distro.Distro) error {
 		if pkg == "" {
 			pkg = tool.Name
 		}
-		return runCmd("sudo", "pacman", "-Syu", "--noconfirm", pkg)
+		return runCmd("sudo", "pacman", "-Syu", pkg)
 	case distro.Kali, distro.Parrot, distro.Debian:
 		if err := runCmd("sudo", "apt", "update"); err != nil {
 			return err

@@ -59,6 +59,12 @@ var infoCmd = &cobra.Command{
 		if t.DebianPackage != "" {
 			rows = append(rows, []string{"Debian pkg", t.DebianPackage})
 		}
+		if deps := t.Depends["arch"]; len(deps) > 0 {
+			rows = append(rows, []string{"Deps (arch)", strings.Join(deps, ", ")})
+		}
+		if deps := t.Depends["debian"]; len(deps) > 0 {
+			rows = append(rows, []string{"Deps (debian)", strings.Join(deps, ", ")})
+		}
 
 		return pterm.DefaultTable.WithBoxed().WithLeftAlignment().WithData(rows).Render()
 	},
