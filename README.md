@@ -26,12 +26,13 @@ berserk sync
 `/usr/share/berserk`; override with `--config <dir>`. The directory holds:
 
 - `config.yaml` — runtime knobs (github_token, install_dir, parallel, etc.)
-- `tools.yaml` — the tool catalog (or split across `ad.yaml`, `web.yaml`, etc.)
 - `profiles.yaml` — declarations of available profiles
 - `categories.yaml` — declarations of available categories
 
 Every `*.yaml`/`*.yml` in the dir except `config.yaml` is merged at load time,
 so you can split however the maintainer prefers.
+
+- configs [repo](https://github.com/berserkarch/berserk-repo)
 
 ## Quick start
 
@@ -118,7 +119,7 @@ Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split fi
 | installer | required                                           | example                                                        |
 | --------- | -------------------------------------------------- | -------------------------------------------------------------- |
 | `pipx`    | `repo` or `package`                                | `repo: fortra/impacket`                                        |
-| `go`    | `repo` or `package`                                | `repo: projectdiscovery/nuclei/v3/cmd/nuclei`                  |
+| `go`      | `repo` or `package`                                | `repo: projectdiscovery/nuclei/v3/cmd/nuclei`                  |
 | `cargo`   | (`package` defaults)                               | `package: rustscan`                                            |
 | `gem`     | (`package` defaults)                               | `package: evil-winrm`                                          |
 | `npm`     | (`package` defaults)                               | `package: <pkg>`                                               |
@@ -156,4 +157,4 @@ Per-tool updates (`berserk update <name>`) just re-run the install at `@latest`.
 
 ## License
 
-Source available; no formal license yet (see plan.md).
+Source available; no formal license yet!
