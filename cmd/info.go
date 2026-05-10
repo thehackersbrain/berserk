@@ -33,7 +33,7 @@ var infoCmd = &cobra.Command{
 			{"Categories", strings.Join(t.Category, ", ")},
 		}
 		if len(t.Steps) > 0 {
-			rows = append(rows, []string{"Install cmd", fmt.Sprintf("%d custom step(s)", len(t.Steps))})
+			rows = append(rows, []string{"Custom steps", fmt.Sprintf("%d step(s)", len(t.Steps))})
 		}
 		if len(t.Profiles) > 0 {
 			rows = append(rows, []string{"Profiles", strings.Join(t.Profiles, ", ")})

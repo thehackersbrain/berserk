@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -40,12 +41,20 @@ var installCmd = &cobra.Command{
 				return err
 			}
 		case len(args) > 0:
+			// Resolve every name up front so a typo on one tool doesn't strand
+			// the user mid-batch. Surface the full list of unknowns so they
+			// can fix them in one round.
+			var unknown []string
 			for _, name := range args {
 				t, ok := reg.FindTool(name)
 				if !ok {
-					return fmt.Errorf("unknown tool: %s", name)
+					unknown = append(unknown, name)
+					continue
 				}
 				tools = append(tools, *t)
+			}
+			if len(unknown) > 0 {
+				return fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
 			}
 		default:
 			return fmt.Errorf("no tools specified — pass tool names, --profile, or --all")

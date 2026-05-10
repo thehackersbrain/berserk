@@ -51,10 +51,10 @@ var updateCmd = &cobra.Command{
 				return err
 			}
 			tools = filterByDistro(tools, d)
-			failed.Store(int32(updateAll(tools, d, opts, reg.Config.Parallel)))
+			failed.Store(updateAll(tools, d, opts, reg.Config.Parallel))
 		default:
 			printProgress("Updating all backends...")
-			failed.Store(int32(updateAllBackends(reg, d, opts, updateBackend)))
+			failed.Store(updateAllBackends(reg, d, opts, updateBackend))
 		}
 
 		if n := failed.Load(); n > 0 {
@@ -64,7 +64,7 @@ var updateCmd = &cobra.Command{
 	},
 }
 
-func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.Options, only string) int {
+func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.Options, only string) int32 {
 	type backendFn struct {
 		name string
 		fn   func() error
@@ -76,7 +76,7 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 
 	var (
 		wg     sync.WaitGroup
-		failed int
+		failed atomic.Int32
 	)
 
 	for _, b := range []backendFn{
@@ -94,9 +94,9 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 			printProgress("Updating %s packages...", b.name)
 			printMu.Unlock()
 			if err := b.fn(); err != nil {
+				failed.Add(1)
 				printMu.Lock()
 				printWarn("%s update: %v", b.name, err)
-				failed++
 				printMu.Unlock()
 			} else {
 				printMu.Lock()
@@ -123,9 +123,9 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 				printProgress("Updating go tool: %s", t.Name)
 				printMu.Unlock()
 				if err := installer.Go(t); err != nil {
+					failed.Add(1)
 					printMu.Lock()
 					printWarn("go update %s: %v", t.Name, err)
-					failed++
 					printMu.Unlock()
 				}
 			}
@@ -147,9 +147,9 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 				printProgress("Updating gem: %s", t.Name)
 				printMu.Unlock()
 				if err := installer.GemUpgrade(t); err != nil {
+					failed.Add(1)
 					printMu.Lock()
 					printWarn("gem update %s: %v", t.Name, err)
-					failed++
 					printMu.Unlock()
 				}
 			}
@@ -158,25 +158,26 @@ func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.O
 
 	wg.Wait()
 
-	if failed == 0 {
+	n := failed.Load()
+	if n == 0 {
 		printOK("All backends updated")
 	} else {
-		printWarn("Backend updates finished with %d failure(s)", failed)
+		printWarn("Backend updates finished with %d failure(s)", n)
 	}
-	return failed
+	return n
 }
 
-func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, parallel bool) int {
-	var failed int
+func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, parallel bool) int32 {
+	var failed atomic.Int32
 
 	doOne := func(t registry.Tool) {
 		printMu.Lock()
 		printProgress("Updating %s...", t.Name)
 		printMu.Unlock()
 		if err := installer.Update(t, d, opts); err != nil {
+			failed.Add(1)
 			printMu.Lock()
 			printErr("%s: %v", t.Name, err)
-			failed++
 			printMu.Unlock()
 		} else {
 			printMu.Lock()
@@ -189,7 +190,7 @@ func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, p
 		for _, t := range tools {
 			doOne(t)
 		}
-		return failed
+		return failed.Load()
 	}
 
 	var wg sync.WaitGroup
@@ -201,7 +202,7 @@ func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, p
 		}(t)
 	}
 	wg.Wait()
-	return failed
+	return failed.Load()
 }
 
 func init() {

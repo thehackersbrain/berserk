@@ -70,7 +70,6 @@ func loadContext() (*registry.Registry, distro.Distro, installer.Options, error)
 	opts := installer.Options{
 		InstallDir:  installDir,
 		GithubToken: token,
-		Verbose:     reg.Config.Verbose,
 	}
 
 	return reg, d, opts, nil

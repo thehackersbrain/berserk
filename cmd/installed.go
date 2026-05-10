@@ -7,22 +7,28 @@ import (
 	"github.com/thehackersbrain/berserk/internal/state"
 )
 
-// installedSet decides whether each tool counts as installed. The state file
-// is the source of truth — we only record entries on confirmed install
-// success, so it doesn't suffer from the impacket-style problem where the
-// catalog name doesn't match any binary on PATH. PATH lookup is kept as a
-// fallback for tools the user installed before berserk knew about them.
+// installedSet decides whether each tool counts as installed. The state
+// file is the source of truth — we only record entries on confirmed
+// install success, so it doesn't suffer from the impacket-style problem
+// where the catalog name doesn't match any binary on PATH.
+//
+// pathFallback toggles a secondary "is this name on PATH?" check. The
+// `list` command keeps it off so the green ✓ marker only flags tools
+// berserk actually installed; `search --installed` turns it on so users
+// can grep for tools that exist on the box regardless of provenance.
 //
 // st may be nil; in that case only the PATH heuristic applies.
-func installedSet(tools []registry.Tool, st *state.State) map[string]bool {
+func installedSet(tools []registry.Tool, st *state.State, pathFallback bool) map[string]bool {
 	out := make(map[string]bool, len(tools))
 	for _, t := range tools {
 		if st != nil && st.Has(t.Name) {
 			out[t.Name] = true
 			continue
 		}
-		if _, err := exec.LookPath(t.Name); err == nil {
-			out[t.Name] = true
+		if pathFallback {
+			if _, err := exec.LookPath(t.Name); err == nil {
+				out[t.Name] = true
+			}
 		}
 	}
 	return out

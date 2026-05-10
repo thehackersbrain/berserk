@@ -20,16 +20,16 @@ func System(tool registry.Tool, d distro.Distro) error {
 		if pkg == "" {
 			pkg = tool.Name
 		}
-		return runCmd("sudo", "apt-get", "install", "-y", pkg)
+		return runCmd("sudo", "apt", "install", "-y", pkg)
 	default:
 		return fmt.Errorf("system installer: unsupported distro %s", d)
 	}
 }
 
-// SystemUpdate refreshes and upgrades the package on Arch (so a plain
-// `berserk update <pkg>` actually pulls a newer version), or runs the same
-// `apt-get install -y` path on Debian-family distros (apt upgrades in place
-// when a newer version is available).
+// SystemUpdate makes `berserk update <system-tool>` actually pull a newer
+// version: on Arch we refresh + upgrade just that package via `pacman -Syu`;
+// on Debian-family distros we refresh the apt index first, then re-run the
+// install (apt upgrades in place when the index has a newer version).
 func SystemUpdate(tool registry.Tool, d distro.Distro) error {
 	switch d {
 	case distro.Arch:
@@ -39,6 +39,9 @@ func SystemUpdate(tool registry.Tool, d distro.Distro) error {
 		}
 		return runCmd("sudo", "pacman", "-Syu", "--noconfirm", pkg)
 	case distro.Kali, distro.Parrot, distro.Debian:
+		if err := runCmd("sudo", "apt", "update"); err != nil {
+			return err
+		}
 		return System(tool, d)
 	default:
 		return fmt.Errorf("system installer: unsupported distro %s", d)

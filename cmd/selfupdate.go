@@ -7,11 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 const berserkRepo = "thehackersbrain/berserk"
+
+// selfUpdateClient bounds the GitHub release download. http.DefaultClient
+// has no timeout, so a stalled mirror would wedge the process forever.
+var selfUpdateClient = &http.Client{Timeout: 5 * time.Minute}
 
 var selfUpdateCmd = &cobra.Command{
 	Use:   "self-update",
@@ -34,12 +39,15 @@ var selfUpdateCmd = &cobra.Command{
 
 		printProgress("Downloading latest berserk...")
 
-		req, _ := http.NewRequest("GET", url, nil)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return fmt.Errorf("building request: %w", err)
+		}
 		if opts.GithubToken != "" {
 			req.Header.Set("Authorization", "Bearer "+opts.GithubToken)
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := selfUpdateClient.Do(req)
 		if err != nil {
 			return fmt.Errorf("download failed: %w", err)
 		}

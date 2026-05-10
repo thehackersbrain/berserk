@@ -64,7 +64,10 @@ Results show a green ✓ for tools already on your $PATH.`,
 		}
 
 		st := loadStateOrWarn()
-		installed := installedSet(results, st)
+		// search's --installed/--available is "is this on the box?" —
+		// PATH fallback catches tools the user installed before berserk
+		// knew about them.
+		installed := installedSet(results, st, true)
 		results = filterByInstallStatus(results, installed, searchInstalled, searchAvailable)
 
 		if len(results) == 0 {

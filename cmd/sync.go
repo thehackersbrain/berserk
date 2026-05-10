@@ -35,10 +35,9 @@ var syncCatalog = &cobra.Command{
 		gcmd.Stderr = os.Stderr
 		gcmd.Stdin = os.Stdin
 
-		if err := gcmd.Run(); err != nil {
-			return fmt.Errorf("git operation failed: %w", err)
-		}
-		return nil
+		// git already wrote its own diagnostic to stderr; wrapping the exit
+		// error here would just duplicate the same message on its own line.
+		return gcmd.Run()
 	},
 }
 

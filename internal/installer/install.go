@@ -14,10 +14,12 @@ type Options struct {
 	InstallDir  string
 	GithubToken string
 	DryRun      bool
-	Verbose     bool
 }
 
-// SetVerbose should be called once before any Install calls begin, not per-tool.
+// SetVerbose toggles the package-level Verbose flag that runCmd reads.
+// Call once at startup before any Install/Update/Remove invocation —
+// it's not threaded through Options because verbosity isn't a per-tool
+// decision.
 func SetVerbose(v bool) { Verbose = v }
 
 func Install(tool registry.Tool, d distro.Distro, opts Options) error {
@@ -122,7 +124,9 @@ func Remove(tool registry.Tool, d distro.Distro) error {
 			if pkg == "" {
 				pkg = tool.Name
 			}
-			return runCmd("sudo", "apt-get", "remove", "-y", pkg)
+			return runCmd("sudo", "apt", "remove", "-y", pkg)
+		default:
+			return fmt.Errorf("system installer: unsupported distro %s", d)
 		}
 
 	case "custom":

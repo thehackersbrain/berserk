@@ -22,20 +22,25 @@ func (s Snapshot) Check(name string) string {
 	return s[name]
 }
 
-// LoadInstalled queries every supported manager once and returns the
-// merged snapshot. Errors from any single manager are swallowed — a system
-// without `pacman` shouldn't break conflict detection on Debian.
+// LoadInstalled queries every supported source-based manager once and
+// returns the merged snapshot. Errors from any single manager are
+// swallowed — a system without `pacman` shouldn't break conflict
+// detection on Debian.
 //
-// Precedence is first-write-wins per name: if a tool shows up in both pipx
-// and the system package list, the manager checked earlier here is
-// reported. Order roughly tracks "more likely to be the user's choice".
+// We deliberately don't check dpkg/apt here: berserk focuses on
+// source-based installs, and the Debian package universe is too broad
+// to give meaningful "already installed via X" warnings without a flood
+// of false positives (every system has hundreds of apt-managed
+// packages, almost none of them tools the user wants berserk to manage).
+//
+// Precedence is first-write-wins per name. Order tracks "more likely
+// to be the user's choice".
 func LoadInstalled() Snapshot {
 	s := Snapshot{}
 	addPipx(s)
 	addCargo(s)
 	addGem(s)
 	addPacman(s)
-	addDpkg(s)
 	return s
 }
 
@@ -107,20 +112,3 @@ func addPacman(s Snapshot) {
 	}
 }
 
-func addDpkg(s Snapshot) {
-	out, err := exec.Command("dpkg-query", "-W", "-f=${Package} ${Status}\n").Output()
-	if err != nil {
-		return
-	}
-	for _, line := range strings.Split(string(out), "\n") {
-		if !strings.Contains(line, "install ok installed") {
-			continue
-		}
-		fields := strings.Fields(line)
-		if len(fields) > 0 {
-			if _, ok := s[fields[0]]; !ok {
-				s[fields[0]] = "dpkg"
-			}
-		}
-	}
-}

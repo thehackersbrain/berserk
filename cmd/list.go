@@ -98,7 +98,10 @@ var listCmd = &cobra.Command{
 		}
 
 		st := loadStateOrWarn()
-		present := installedSet(reg.Tools, st)
+		// list's ✓ marker is "did berserk install this?" — state-only.
+		// PATH fallback would falsely claim credit for system-installed
+		// tools we never touched.
+		present := installedSet(reg.Tools, st, false)
 
 		if len(reg.Tools) == 0 {
 			pterm.Info.Println("No tools found.")
@@ -139,5 +142,6 @@ func renderToolTable(tools []registry.Tool, showStatus bool, installed map[strin
 func init() {
 	listCmd.Flags().BoolVarP(&listProfiles, "profiles", "p", false, "list all profiles")
 	listCmd.Flags().BoolVarP(&listCategories, "categories", "c", false, "list all categories")
+	listCmd.MarkFlagsMutuallyExclusive("profiles", "categories")
 	rootCmd.AddCommand(listCmd)
 }

@@ -58,9 +58,6 @@ func TestAddPersistsAcrossLoad(t *testing.T) {
 	if !ok || e.Installer != "pipx" {
 		t.Errorf("entry roundtrip = %+v, ok=%v", e, ok)
 	}
-	if e.InstalledAt.IsZero() {
-		t.Error("InstalledAt was not set")
-	}
 }
 
 func TestRemoveDeletesEntry(t *testing.T) {

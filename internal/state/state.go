@@ -13,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/thehackersbrain/berserk/internal/registry"
 	"gopkg.in/yaml.v3"
@@ -21,8 +20,7 @@ import (
 
 // Entry is one row in the state file.
 type Entry struct {
-	Installer   string    `yaml:"installer"`
-	InstalledAt time.Time `yaml:"installed_at"`
+	Installer string `yaml:"installer"`
 }
 
 // State tracks tools installed by berserk. The mutex serializes Save calls
@@ -94,8 +92,7 @@ func (s *State) Add(t registry.Tool) error {
 		s.tools = map[string]Entry{}
 	}
 	s.tools[t.Name] = Entry{
-		Installer:   t.Installer,
-		InstalledAt: time.Now().UTC(),
+		Installer: t.Installer,
 	}
 	return s.saveLocked()
 }

@@ -33,7 +33,7 @@ build:
 run: build
 	./$(BINARY) --config configs $(ARGS)
 
-## install: install $(BINARY) to $(BINDIR) and every yaml in ./configs to $(CONFIGDIR)
+## install: install $(BINARY) to $(BINDIR); fetch the catalog with `berserk sync`
 .PHONY: install
 install: build
 	sudo mkdir -p $(DESTDIR)$(BINDIR)
