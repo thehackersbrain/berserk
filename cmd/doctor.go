@@ -14,7 +14,7 @@ import (
 type backend struct {
 	name        string
 	versionArgs []string
-	binPath     func() string // resolves the backend's tool install dir; nil = not applicable
+	binPath     func() string
 }
 
 func home(rel string) string {
@@ -87,6 +87,73 @@ func pathDirs() map[string]bool {
 	return dirs
 }
 
+// shellRCs returns all shell rc files that exist on disk.
+func shellRCs() []string {
+	candidates := []string{
+		home(".bashrc"),
+		home(".zshrc"),
+		home(".config/fish/config.fish"),
+		home(".kshrc"),
+		home(".profile"),
+	}
+	var found []string
+	for _, rc := range candidates {
+		if _, err := os.Stat(rc); err == nil {
+			found = append(found, rc)
+		}
+	}
+	return found
+}
+
+// appendToPATH writes the bin dir export to every shell rc file that doesn't
+// already contain it.
+func appendToPATH(binDir string) error {
+	rcs := shellRCs()
+	if len(rcs) == 0 {
+		return fmt.Errorf("no known shell rc files found — add %s to PATH manually", binDir)
+	}
+
+	var errs []string
+	var updated []string
+
+	for _, rc := range rcs {
+		existing, _ := os.ReadFile(rc)
+		if strings.Contains(string(existing), binDir) {
+			continue
+		}
+
+		var line string
+		if strings.HasSuffix(rc, "config.fish") {
+			line = fmt.Sprintf("fish_add_path %s", binDir)
+		} else {
+			line = fmt.Sprintf(`export PATH="%s:$PATH"`, binDir)
+		}
+
+		f, err := os.OpenFile(rc, os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", rc, err))
+			continue
+		}
+		_, err = fmt.Fprintf(f, "\n# added by berserk doctor\n%s\n", line)
+		f.Close() //nolint:errcheck
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", rc, err))
+			continue
+		}
+		updated = append(updated, rc)
+	}
+
+	if len(updated) > 0 {
+		pterm.Success.Printfln("added %s to PATH in: %s",
+			pterm.Bold.Sprint(binDir), strings.Join(updated, ", "))
+		pterm.Info.Printfln("reload with: source %s", updated[0])
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("some rc files could not be updated:\n  %s", strings.Join(errs, "\n  "))
+	}
+	return nil
+}
+
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Verify all installer backends are available",
@@ -120,27 +187,38 @@ var doctorCmd = &cobra.Command{
 				cargoOK = true
 			}
 
-			// Check that the backend's tool bin dir is on PATH.
-			if b.binPath != nil {
-				binDir := b.binPath()
-				if binDir == "" {
-					continue
+			if b.binPath == nil {
+				continue
+			}
+
+			binDir := b.binPath()
+			if binDir == "" {
+				continue
+			}
+
+			if !inPATH[filepath.Clean(binDir)] {
+				items = append(items, bulletItem(false,
+					fmt.Sprintf("  %s bin dir %s is not in PATH — attempting to fix...",
+						b.name, pterm.Yellow(binDir))))
+
+				if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
+					return err
 				}
-				if !inPATH[filepath.Clean(binDir)] {
-					items = append(items, bulletItem(false,
-						fmt.Sprintf("  %s bin dir %s is not in PATH — tools installed via %s won't be found",
-							b.name, pterm.Yellow(binDir), b.name)))
-				} else {
-					items = append(items, bulletItem(true,
-						fmt.Sprintf("  %s bin dir %s", b.name, pterm.Gray(binDir))))
+				items = nil
+
+				if err := appendToPATH(binDir); err != nil {
+					pterm.Warning.Printfln("could not add %s to PATH: %v", binDir, err)
 				}
+			} else {
+				items = append(items, bulletItem(true,
+					fmt.Sprintf("  %s bin dir %s", b.name, pterm.Gray(binDir))))
 			}
 		}
 
 		if cargoOK {
 			if _, err := exec.LookPath("cargo-install-update"); err != nil {
 				items = append(items, bulletItem(false,
-					"cargo-install-update  not found — installing cargo-update..."))
+					"cargo-install-update not found — installing cargo-update..."))
 				if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
 					return err
 				}

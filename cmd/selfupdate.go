@@ -43,7 +43,7 @@ var selfUpdateCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("download failed: %w", err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		if resp.StatusCode != 200 {
 			return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
@@ -54,13 +54,13 @@ var selfUpdateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer os.Remove(tmp.Name())
+		defer os.Remove(tmp.Name()) //nolint:errcheck
 
 		if _, err := io.Copy(tmp, resp.Body); err != nil {
-			tmp.Close()
+			tmp.Close() //nolint:errcheck
 			return err
 		}
-		tmp.Close()
+		tmp.Close() //nolint:errcheck
 
 		if err := os.Chmod(tmp.Name(), 0o755); err != nil {
 			return err
