@@ -131,7 +131,7 @@ Use 'berserk run <name>' to launch a matched container.`,
 					loc += pterm.Gray(" → ") + pterm.Magenta(r.CategoryName)
 				}
 				pterm.DefaultBasicText.Printfln("  %s", loc)
-				printContainerDetails(r.Container)
+				printContainerDetails(configDir(), r.Container)
 				pterm.Println()
 			}
 		}

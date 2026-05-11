@@ -15,17 +15,15 @@ import (
 
 var rootDockerClean bool
 
+// rootCmd's RunE is assigned in init() rather than inline so the var
+// initializer doesn't reference runDockerClean — that would close an
+// initialization cycle with configDir, which any code path needing the
+// config-dir override path must call.
 var rootCmd = &cobra.Command{
 	Use:               "berserk",
 	Short:             "Curated offensive security tool manager",
 	Long:              "Package Manager for Security Tools, always from original sources, always latest.",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if rootDockerClean {
-			return runDockerClean(cmd)
-		}
-		return cmd.Help()
-	},
 }
 
 func Execute() {
@@ -40,6 +38,12 @@ func Execute() {
 const defaultConfigDir = "/usr/share/berserk"
 
 func init() {
+	rootCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if rootDockerClean {
+			return runDockerClean(cmd)
+		}
+		return cmd.Help()
+	}
 	rootCmd.PersistentFlags().String("config", "", "config directory holding config.yaml and tool catalog yaml files (default "+defaultConfigDir+")")
 	// --yes/-y maps to pacman's --noconfirm and apt's -y; off by default so
 	// the underlying pkg mgr can still prompt on conflicts/replacements.

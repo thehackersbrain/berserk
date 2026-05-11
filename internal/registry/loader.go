@@ -75,6 +75,11 @@ type Config struct {
 	InstallDir  string `yaml:"install_dir"`
 	Parallel    bool   `yaml:"parallel"`
 	Verbose     bool   `yaml:"verbose"`
+	// DockerDataDir overrides the root directory where berserk stores
+	// container volume mounts (subdir "containers/") and docker bind
+	// mounts (subdir "docker/"). Empty means default to ~/berserk.
+	// Supports a leading "~/" — expanded against $HOME at use time.
+	DockerDataDir string `yaml:"docker_data_dir"`
 }
 
 type Registry struct {

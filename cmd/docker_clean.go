@@ -69,7 +69,7 @@ func runDockerClean(cmd *cobra.Command) error {
 		errs = append(errs, fmt.Sprintf("docker system prune: %v", err))
 	}
 
-	dataDir := dockerDataDir()
+	dataDir := dockerDataDir(configDir())
 	for _, sub := range []string{"docker", "containers"} {
 		p := filepath.Join(dataDir, sub)
 		if _, err := os.Stat(p); err == nil {

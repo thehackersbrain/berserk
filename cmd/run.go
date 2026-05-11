@@ -60,7 +60,8 @@ var runCmd = &cobra.Command{
 		if strings.TrimSpace(c.Run) == "" {
 			return fmt.Errorf("container %q has empty run command in catalog", c.Name)
 		}
-		runStr := expandRunCmd(c.Run)
+		cfgDir := configDir()
+		runStr := expandRunCmd(cfgDir, c.Run)
 
 		if runFlags != "" {
 			// strings.Replace silently returns the input when the pattern
@@ -77,7 +78,7 @@ var runCmd = &cobra.Command{
 			pterm.Println()
 			pterm.DefaultBasicText.Println(pterm.Bold.Sprint("=== Runtime Information ==="))
 			for _, line := range c.RuntimeComments {
-				pterm.DefaultBasicText.Println("  " + pterm.Green(expandRunCmd(line)))
+				pterm.DefaultBasicText.Println("  " + pterm.Green(expandRunCmd(cfgDir, line)))
 			}
 			pterm.DefaultBasicText.Println(pterm.Bold.Sprint("==========================="))
 			pterm.Println()
