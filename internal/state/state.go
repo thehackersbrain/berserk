@@ -91,10 +91,21 @@ func (s *State) Add(t registry.Tool) error {
 	if s.tools == nil {
 		s.tools = map[string]Entry{}
 	}
+	prev, hadPrev := s.tools[t.Name]
 	s.tools[t.Name] = Entry{
 		Installer: t.Installer,
 	}
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// Roll back the in-memory mutation so callers that read state in
+		// the same process don't see an entry that isn't on disk.
+		if hadPrev {
+			s.tools[t.Name] = prev
+		} else {
+			delete(s.tools, t.Name)
+		}
+		return err
+	}
+	return nil
 }
 
 // Remove drops a tool from state and persists. Removing a missing entry is
@@ -103,11 +114,17 @@ func (s *State) Add(t registry.Tool) error {
 func (s *State) Remove(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.tools[name]; !ok {
+	prev, ok := s.tools[name]
+	if !ok {
 		return nil
 	}
 	delete(s.tools, name)
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// Restore so in-memory state stays consistent with disk.
+		s.tools[name] = prev
+		return err
+	}
+	return nil
 }
 
 // Has reports whether berserk has recorded an install for name.
