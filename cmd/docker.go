@@ -20,14 +20,20 @@ func dockerDataDir() string {
 	return filepath.Join(h, "berserk")
 }
 
-// expandRunCmd rewrites btweak-era volume paths to ~/berserk/ and expands ~.
+// rewriteBtweakPaths replaces ~/btweak/{containers,docker}/ with
+// ~/berserk/{containers,docker}/. Used for display so the user sees where
+// data actually lives without expanding ~ to an absolute path.
+func rewriteBtweakPaths(s string) string {
+	s = strings.ReplaceAll(s, "~/btweak/containers/", "~/berserk/containers/")
+	s = strings.ReplaceAll(s, "~/btweak/docker/", "~/berserk/docker/")
+	return s
+}
+
+// expandRunCmd rewrites btweak-era volume paths to ~/berserk/ and expands ~
+// to the absolute home dir. Used right before exec'ing docker.
 func expandRunCmd(cmd string) string {
 	h, _ := os.UserHomeDir()
-	data := dockerDataDir()
-
-	cmd = strings.ReplaceAll(cmd, "~/btweak/containers/", data+"/containers/")
-	cmd = strings.ReplaceAll(cmd, "~/btweak/docker/", data+"/docker/")
-
+	cmd = rewriteBtweakPaths(cmd)
 	if h != "" {
 		cmd = strings.ReplaceAll(cmd, "~/", h+"/")
 	}
@@ -48,9 +54,15 @@ func extractVolumes(cmd string) []string {
 	return paths
 }
 
-// ensureVolumeDirs creates every host volume path with MkdirAll.
+// ensureVolumeDirs creates every host volume path with MkdirAll. Paths
+// containing $ are skipped — those are shell expansions like $(pwd) or
+// $HOME that get resolved by the shell when the docker command runs, and
+// we shouldn't materialize a directory literally named "$(pwd)".
 func ensureVolumeDirs(paths []string) error {
 	for _, p := range paths {
+		if strings.Contains(p, "$") {
+			continue
+		}
 		if err := os.MkdirAll(p, 0o755); err != nil {
 			return fmt.Errorf("creating volume dir %s: %w", p, err)
 		}
@@ -59,25 +71,27 @@ func ensureVolumeDirs(paths []string) error {
 }
 
 // loadDockerGroups reads all *.yaml files from <configDir>/containers/.
-// Returns nil groups (no error) when the directory doesn't exist so callers
-// that are best-effort (search, list) can degrade gracefully.
+// Returns (nil, nil) when the directory does not exist — callers in
+// best-effort contexts (search) degrade silently. Real parse/IO errors
+// are returned as-is so the caller can surface them.
 func loadDockerGroups() ([]docker.Group, error) {
 	dir := filepath.Join(configDir(), "containers")
 	groups, err := docker.LoadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("loading docker catalog: %w\n\tadd container yaml files to %s", err, dir)
+		return nil, fmt.Errorf("docker catalog at %s: %w", dir, err)
 	}
 	return groups, nil
 }
 
 // printContainerDetails prints a container's name, description, pull/run
-// commands and optional runtime notes (paths shown from catalog as-is).
+// commands and runtime notes. Paths are rewritten to ~/berserk/ so the
+// user sees the locations berserk will actually use at runtime.
 func printContainerDetails(c docker.Container) {
 	pterm.Println("  " + pterm.Bold.Sprint(c.Name))
 	pterm.DefaultBasicText.Printfln("    %s", pterm.Gray(c.Description))
 	pterm.DefaultBasicText.Printfln("    Pull: %s", pterm.Cyan(c.Command))
-	pterm.DefaultBasicText.Printfln("    Run:  %s", pterm.Yellow(c.Run))
+	pterm.DefaultBasicText.Printfln("    Run:  %s", pterm.Yellow(rewriteBtweakPaths(c.Run)))
 	for _, line := range c.RuntimeComments {
-		pterm.DefaultBasicText.Printfln("    %s", pterm.Gray(line))
+		pterm.DefaultBasicText.Printfln("    %s", pterm.Gray(rewriteBtweakPaths(line)))
 	}
 }

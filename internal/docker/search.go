@@ -43,19 +43,33 @@ func Search(groups []Group, term string) []SearchResult {
 }
 
 // SearchByCategory returns all containers whose group name or category name
-// contains term (case-insensitive). Used by `berserk search --category`.
+// contains term (case-insensitive). When a group name matches, ALL containers
+// in that group (flat and nested in any category) are returned. Used by
+// `berserk search --category`.
 func SearchByCategory(groups []Group, term string) []SearchResult {
 	lower := strings.ToLower(term)
 	var results []SearchResult
 
 	for _, g := range groups {
-		// Flat group whose name matches the term.
+		// Group name match: return everything in the group (flat + nested),
+		// not just g.Containers — a categorized group has empty g.Containers
+		// but holds all its containers under g.Categories.
 		if strings.Contains(strings.ToLower(g.Name), lower) {
 			for _, c := range g.Containers {
 				results = append(results, SearchResult{GroupName: g.Name, Container: c})
 			}
+			for _, cat := range g.Categories {
+				for _, c := range cat.Containers {
+					results = append(results, SearchResult{
+						GroupName:    g.Name,
+						CategoryName: cat.Name,
+						Container:    c,
+					})
+				}
+			}
+			continue // don't double-count via category-name match below
 		}
-		// Categorized group: check each category name.
+		// Group name didn't match — check each category name.
 		for _, cat := range g.Categories {
 			if strings.Contains(strings.ToLower(cat.Name), lower) {
 				for _, c := range cat.Containers {

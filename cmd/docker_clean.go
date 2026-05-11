@@ -68,6 +68,20 @@ func runDockerClean(cmd *cobra.Command) error {
 		if _, err := os.Stat(p); err == nil {
 			pterm.Info.Printfln("Removing %s...", p)
 			if err := os.RemoveAll(p); err != nil {
+				// Docker containers running as root often leave root-owned
+				// files under user-owned volumes. Fall back to `sudo rm -rf`
+				// so cleanup actually completes (matches btweak behavior).
+				if os.IsPermission(err) {
+					pterm.Info.Printfln("  (root-owned files detected; retrying with sudo)")
+					sudoCmd := exec.Command("sudo", "rm", "-rf", p)
+					sudoCmd.Stdout = os.Stdout
+					sudoCmd.Stderr = os.Stderr
+					sudoCmd.Stdin = os.Stdin
+					if serr := sudoCmd.Run(); serr != nil {
+						errs = append(errs, fmt.Sprintf("sudo rm -rf %s: %v", p, serr))
+					}
+					continue
+				}
 				errs = append(errs, fmt.Sprintf("remove %s: %v", p, err))
 			}
 		}
@@ -85,10 +99,13 @@ func runDockerClean(cmd *cobra.Command) error {
 	return nil
 }
 
-// dockerQueryLines runs `docker <args...>` and returns each non-empty stdout line.
+// dockerQueryLines runs `docker <args...>` and returns each non-empty stdout
+// line. On error it emits a warning so a missing/broken docker daemon doesn't
+// silently masquerade as "nothing to clean".
 func dockerQueryLines(args ...string) []string {
 	out, err := exec.Command("docker", args...).Output()
 	if err != nil {
+		pterm.Warning.Printfln("docker %s: %v", strings.Join(args, " "), err)
 		return nil
 	}
 	var lines []string

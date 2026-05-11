@@ -26,6 +26,9 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if len(groups) == 0 {
+			return fmt.Errorf("no Docker catalog found at %s/containers — run `berserk sync` or check --config", configDir())
+		}
 
 		results := docker.Search(groups, args[0])
 		switch len(results) {
@@ -42,10 +45,10 @@ var runCmd = &cobra.Command{
 		}
 
 		c := results[0].Container
-		runCmd := expandRunCmd(c.Run)
+		runStr := expandRunCmd(c.Run)
 
 		if runFlags != "" {
-			runCmd = strings.Replace(runCmd, "docker run", "docker run "+runFlags, 1)
+			runStr = strings.Replace(runStr, "docker run", "docker run "+runFlags, 1)
 		}
 
 		if len(c.RuntimeComments) > 0 {
@@ -58,28 +61,24 @@ var runCmd = &cobra.Command{
 			pterm.Println()
 		}
 
-		pterm.DefaultBasicText.Printfln("%s %s", pterm.Bold.Sprint(">>>"), pterm.Yellow(runCmd))
+		pterm.DefaultBasicText.Printfln("%s %s", pterm.Bold.Sprint(">>>"), pterm.Yellow(runStr))
 		pterm.Println()
 
-		if err := ensureVolumeDirs(extractVolumes(runCmd)); err != nil {
+		// MkdirAll non-shell-expanded volume paths so docker can mount them.
+		// Shell-expanded volumes ($(pwd), $HOME/...) are handled by sh below.
+		if err := ensureVolumeDirs(extractVolumes(runStr)); err != nil {
 			pterm.Warning.Printfln("could not create volume dirs: %v", err)
 		}
 
-		parts := strings.Fields(runCmd)
-		if len(parts) == 0 {
-			return fmt.Errorf("empty run command for %s", c.Name)
-		}
-
+		// Exec through /bin/sh so shell constructs in the catalog work:
+		// $(pwd), $DISPLAY, $HOME, quoted arg values, etc. btweak relied
+		// on Python's shell=True for the same reason.
 		if runTerminal {
-			kittyArgs := append([]string{"--hold", "tmux", "new-session"}, parts...)
-			return exec.Command("kitty", kittyArgs...).Start()
+			// tmux runs its command argument via the user's shell when
+			// given as a single string, so $(pwd) etc. expand correctly.
+			return exec.Command("kitty", "--hold", "tmux", "new-session", runStr).Start()
 		}
-
-		dockerPath, err := exec.LookPath(parts[0])
-		if err != nil {
-			return fmt.Errorf("docker not found in PATH: %w", err)
-		}
-		return syscall.Exec(dockerPath, parts, os.Environ())
+		return syscall.Exec("/bin/sh", []string{"sh", "-c", runStr}, os.Environ())
 	},
 }
 

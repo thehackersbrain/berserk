@@ -25,6 +25,10 @@ var listCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
+			if len(groups) == 0 {
+				pterm.Info.Printfln("No Docker catalog found at %s/containers — run `berserk sync` or add container yaml files.", configDir())
+				return nil
+			}
 
 			var items []pterm.BulletListItem
 			for i, g := range groups {
