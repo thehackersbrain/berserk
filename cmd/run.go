@@ -63,7 +63,14 @@ var runCmd = &cobra.Command{
 		runStr := expandRunCmd(c.Run)
 
 		if runFlags != "" {
-			runStr = strings.Replace(runStr, "docker run", "docker run "+runFlags, 1)
+			// strings.Replace silently returns the input when the pattern
+			// isn't present — that would drop the user's --flags without a
+			// peep. Detect the no-op and error out instead.
+			newStr := strings.Replace(runStr, "docker run", "docker run "+runFlags, 1)
+			if newStr == runStr {
+				return fmt.Errorf("cannot inject --flags: container %q run command has no literal 'docker run' to insert after", c.Name)
+			}
+			runStr = newStr
 		}
 
 		if len(c.RuntimeComments) > 0 {

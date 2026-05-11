@@ -38,23 +38,29 @@ func runDockerClean(cmd *cobra.Command) error {
 
 	var errs []string
 
-	ids := dockerQueryLines("ps", "-q")
-	if len(ids) > 0 {
+	ids, err := dockerQueryLines("ps", "-q")
+	switch {
+	case err != nil:
+		errs = append(errs, err.Error())
+	case len(ids) > 0:
 		pterm.Info.Printfln("Stopping %d container(s)...", len(ids))
 		if err := dockerStream(append([]string{"stop"}, ids...)...); err != nil {
 			errs = append(errs, fmt.Sprintf("docker stop: %v", err))
 		}
-	} else {
+	default:
 		pterm.Info.Println("No running containers.")
 	}
 
-	imgIDs := dockerQueryLines("images", "-q")
-	if len(imgIDs) > 0 {
+	imgIDs, err := dockerQueryLines("images", "-q")
+	switch {
+	case err != nil:
+		errs = append(errs, err.Error())
+	case len(imgIDs) > 0:
 		pterm.Info.Printfln("Removing %d image(s)...", len(imgIDs))
 		if err := dockerStream(append([]string{"rmi", "-f"}, imgIDs...)...); err != nil {
 			errs = append(errs, fmt.Sprintf("docker rmi: %v", err))
 		}
-	} else {
+	default:
 		pterm.Info.Println("No images found.")
 	}
 
@@ -101,13 +107,13 @@ func runDockerClean(cmd *cobra.Command) error {
 }
 
 // dockerQueryLines runs `docker <args...>` and returns each non-empty stdout
-// line. On error it emits a warning so a missing/broken docker daemon doesn't
-// silently masquerade as "nothing to clean".
-func dockerQueryLines(args ...string) []string {
+// line. The error is surfaced rather than swallowed so a broken docker daemon
+// doesn't masquerade as an empty result — callers want to record that as a
+// cleanup failure, not print "No running containers."
+func dockerQueryLines(args ...string) ([]string, error) {
 	out, err := exec.Command("docker", args...).Output()
 	if err != nil {
-		pterm.Warning.Printfln("docker %s: %v", strings.Join(args, " "), err)
-		return nil
+		return nil, fmt.Errorf("docker %s: %w", strings.Join(args, " "), err)
 	}
 	var lines []string
 	for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -115,7 +121,7 @@ func dockerQueryLines(args ...string) []string {
 			lines = append(lines, l)
 		}
 	}
-	return lines
+	return lines, nil
 }
 
 // dockerStream runs `docker <args...>` with stdout/stderr wired to the terminal.

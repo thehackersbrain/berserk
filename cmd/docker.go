@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,16 +59,22 @@ func extractVolumes(cmd string) []string {
 // containing $ are skipped — those are shell expansions like $(pwd) or
 // $HOME that get resolved by the shell when the docker command runs, and
 // we shouldn't materialize a directory literally named "$(pwd)".
+//
+// One bad path (e.g. -v /etc/passwd:/etc/passwd:ro — a file mount, not a
+// directory) must not abort creation of the rest. We collect every failure
+// and return a joined error so callers can still warn while letting docker
+// attempt the mounts it can.
 func ensureVolumeDirs(paths []string) error {
+	var errs []error
 	for _, p := range paths {
 		if strings.Contains(p, "$") {
 			continue
 		}
 		if err := os.MkdirAll(p, 0o755); err != nil {
-			return fmt.Errorf("creating volume dir %s: %w", p, err)
+			errs = append(errs, fmt.Errorf("creating volume dir %s: %w", p, err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // loadDockerGroups reads all *.yaml files from <configDir>/containers/.
