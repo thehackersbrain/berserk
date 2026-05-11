@@ -277,12 +277,23 @@ func (r *Registry) Validate() error {
 			errs = append(errs, fmt.Sprintf("%s: missing required field 'name'", ctx))
 			continue
 		}
+		// Names and aliases flow into filepath.Join(installDir, name) for
+		// the binary installer and into `sudo install` for the staging
+		// dance. A name like "../../etc/passwd" would escape installDir and
+		// let a malicious catalog overwrite arbitrary files as root. Require
+		// names to be simple filenames (no separators, not relative parts).
+		if !isSafeToolName(t.Name) {
+			errs = append(errs, fmt.Sprintf("%s: name %q must be a simple identifier (no path separators, not '.' or '..')", ctx, t.Name))
+		}
 		if seenTool[t.Name] {
 			errs = append(errs, fmt.Sprintf("%s: duplicate tool name", ctx))
 		}
 		seenTool[t.Name] = true
 
 		for _, a := range t.Aliases {
+			if !isSafeToolName(a) {
+				errs = append(errs, fmt.Sprintf("%s: alias %q must be a simple identifier (no path separators, not '.' or '..')", ctx, a))
+			}
 			if seenTool[a] {
 				errs = append(errs, fmt.Sprintf("%s: alias %q collides with another tool/alias", ctx, a))
 			}
@@ -346,6 +357,28 @@ func (r *Registry) Validate() error {
 		return fmt.Errorf("tool registry validation:\n  - %s", strings.Join(errs, "\n  - "))
 	}
 	return nil
+}
+
+// isSafeToolName reports whether name is a simple filename — no path
+// separators, no parent/self references. Tool names flow into filepath.Join
+// for binary install paths and into `sudo install` invocations; without
+// this check, a catalog entry like `name: "../../etc/passwd"` could be used
+// to overwrite arbitrary files when berserk is run with binary-installer
+// tools that need sudo.
+func isSafeToolName(name string) bool {
+	if name == "" || name == "." || name == ".." {
+		return false
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return false
+	}
+	// filepath.Base is the final guard: any sneaky encoding that gets
+	// past the literal checks still fails Base == name on platforms where
+	// the OS interprets separators differently.
+	if filepath.Base(name) != name {
+		return false
+	}
+	return true
 }
 
 // resolveProfiles computes the full member set for every declared profile,

@@ -26,7 +26,8 @@ func runDockerClean(cmd *cobra.Command) error {
 		fmt.Print("Continue? [y/N] ")
 		scanner := bufio.NewScanner(os.Stdin)
 		scanner.Scan()
-		if strings.ToLower(strings.TrimSpace(scanner.Text())) != "y" {
+		resp := strings.ToLower(strings.TrimSpace(scanner.Text()))
+		if resp != "y" && resp != "yes" {
 			pterm.Info.Println("Aborted.")
 			return nil
 		}

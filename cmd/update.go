@@ -82,7 +82,7 @@ var updateCmd = &cobra.Command{
 			if !opts.DryRun {
 				printProgress("Updating all backends...")
 			}
-			failed.Store(updateAllBackends(reg, d, opts, updateBackend))
+			failed.Store(updateAllBackends(reg, opts, updateBackend))
 		}
 
 		if n := failed.Load(); n > 0 {
@@ -92,7 +92,7 @@ var updateCmd = &cobra.Command{
 	},
 }
 
-func updateAllBackends(reg *registry.Registry, d distro.Distro, opts installer.Options, only string) int32 {
+func updateAllBackends(reg *registry.Registry, opts installer.Options, only string) int32 {
 	type backendFn struct {
 		name string
 		fn   func() error

@@ -172,7 +172,9 @@ func (s *State) saveLocked() error {
 }
 
 func (s *State) saveLockedTo(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	// 0o700: the state file lists which offensive security tools the user has
+	// installed — information that should stay private on multi-user systems.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 

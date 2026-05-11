@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -705,6 +706,45 @@ func TestLoadDirIgnoresNonYAML(t *testing.T) {
 	}
 	if len(reg.Tools) != 1 {
 		t.Errorf("want 1 tool, got %d", len(reg.Tools))
+	}
+}
+
+// TestRejectsPathTraversalInToolName guards the invariant that tool names
+// flow into filepath.Join(installDir, name) and `sudo install`. A catalog
+// entry like name: "../../etc/passwd" must be rejected at load time,
+// otherwise a malicious catalog could overwrite arbitrary files as root.
+func TestRejectsPathTraversalInToolName(t *testing.T) {
+	cases := []string{
+		"../etc/passwd",
+		"../../etc/passwd",
+		"..",
+		".",
+		"foo/bar",
+		`foo\bar`,
+		"",
+	}
+	for _, name := range cases {
+		path := writeTestYAML(t, fmt.Sprintf(`tools:
+  - name: %q
+    installer: binary
+    repo: x/y
+`, name))
+		_, err := Load(path)
+		if err == nil {
+			t.Errorf("Load accepted unsafe name %q (should reject)", name)
+		}
+	}
+}
+
+func TestRejectsPathTraversalInAlias(t *testing.T) {
+	path := writeTestYAML(t, `tools:
+  - name: nuclei
+    installer: binary
+    repo: x/y
+    aliases: ["../etc/passwd"]
+`)
+	if _, err := Load(path); err == nil {
+		t.Error("Load accepted unsafe alias (should reject)")
 	}
 }
 

@@ -47,12 +47,15 @@ sudo apt install golang-go cargo pipx gem ruby-dev make openssl libssl-dev -y
 `berserk` reads its config directory on every invocation. By default that's
 `/usr/share/berserk`; override with `--config <dir>`. The directory holds:
 
-- `config.yaml` — runtime knobs (github_token, install_dir, parallel, etc.)
+- `config.yaml` — runtime knobs (github_token, install_dir, parallel, verbose)
 - `profiles.yaml` — declarations of available profiles
 - `categories.yaml` — declarations of available categories
+- `packages/*.yaml` — tool catalog entries (any number of files, all merged)
+- `containers/*.yaml` — Docker container catalog (for `berserk run` and `berserk list -d`)
 
-Every `*.yaml`/`*.yml` in the dir except `config.yaml` is merged at load time,
-so you can split however the maintainer prefers.
+Every `*.yaml`/`*.yml` under `packages/` is merged at load time, so you can split
+however the maintainer prefers. The `containers/` subdirectory is read separately
+by the `run` and `list -d` commands and is not part of the tool registry.
 
 - configs [repo](https://github.com/berserkarch/berserk-repo)
 
@@ -79,17 +82,19 @@ berserk update [tool...]             update specific tools
 berserk update --profile <name>      update a profile
 berserk update                       fire all backend updaters in parallel
 berserk remove <tool>                remove a tool
-berserk list [-p] [-c]               list tools, profiles (-p), or categories (-c)
-berserk search [query] [filters]     ranked search across name/alias/category/desc
-                  [-c CAT]             filter by category
+berserk list [-p] [-c] [-d]          list tools, profiles (-p), categories (-c), or Docker container groups (-d)
+berserk search [query] [filters]     ranked search across name/alias/category/desc + Docker containers by name
+                  [-c CAT]             filter tools by category, OR Docker groups/categories by name
                   [-b INSTALLER]       filter by installer
                   [-p PROFILE]         search within a profile
                   [-i]                 only show installed tools
                   [--available]        only show tools not yet installed
-berserk info <tool>                  show source, repo, installer
+berserk search info <tool>           show source, repo, installer for a tool (note: subcommand of search)
+berserk run <container> [-t] [-f F]  run a Docker container from the catalog (-t = new kitty terminal, -f = extra docker run flags)
 berserk sync                         sync tools catalog (clone if absent, pull if present)
 berserk doctor                       verify all backends are available
 berserk self-update                  update berserk itself
+berserk --docker-clean               stop all containers, rmi all images, prune, delete ~/berserk/{docker,containers}
 berserk version
 ```
 
@@ -136,7 +141,7 @@ member counts.
 
 ## Adding a tool
 
-Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split file like `ad.yaml`). Each entry needs at minimum `name` and `installer`. Per-installer requirements:
+Edit any tool yaml file under `packages/` in your config dir (`packages/tools.yaml`, or a category-split file like `packages/ad.yaml`). Each entry needs at minimum `name` and `installer`. Per-installer requirements:
 
 | installer | required                                           | example                                                        |
 | --------- | -------------------------------------------------- | -------------------------------------------------------------- |
@@ -150,7 +155,7 @@ Edit any tool yaml file in your config dir (`tools.yaml`, or a category-split fi
 
 Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only).
 
-See `configs/tools.yaml.example` for a worked entry per installer.
+See `configs/packages/tools.yaml.example` for a worked entry per installer.
 
 `berserk` validates the merged tool registry on every load — malformed entries, duplicate tool names, alias collisions, and references to undeclared profiles/categories all fail fast.
 
@@ -170,9 +175,11 @@ fallback so tools you installed before berserk knew about them still register.
 `berserk update` (no args) fires every backend updater in parallel:
 
 - `pipx upgrade-all`
-- `cargo install-update -a` (requires `cargo-install-update`)
-- `gem update`
-- `npm update -g`
-- `go install ...@latest` for every go-installed tool
+- `cargo install-update -a` (requires the `cargo-install-update` crate; `berserk doctor` will install it)
+- `gem update --user-install <pkg>` for every gem-installed tool tracked in state
+- `sudo npm update -g` (updates every globally-installed npm package, not just berserk's)
+- `go install <pkg>@latest` for every go-installed tool tracked in state
 
-Per-tool updates (`berserk update <name>`) just re-run the install at `@latest`.
+Per-tool updates (`berserk update <name>`) re-run the appropriate install/upgrade
+command at latest. Use `berserk update --backend <pipx|cargo|gem|npm|go>` to
+narrow the no-arg sweep to a single backend.

@@ -31,20 +31,35 @@ var runCmd = &cobra.Command{
 		}
 
 		results := docker.Search(groups, args[0])
-		switch len(results) {
-		case 0:
+		if len(results) == 0 {
 			return fmt.Errorf("no container matched %q", args[0])
-		case 1:
-			// continue
-		default:
-			pterm.Warning.Printfln("Multiple containers match %q — be more specific:", args[0])
-			for _, r := range results {
-				pterm.DefaultBasicText.Printfln("  %s", pterm.Green(r.Container.Name))
-			}
-			return fmt.Errorf("ambiguous: %d matches", len(results))
 		}
 
-		c := results[0].Container
+		// Prefer an exact name match when the substring search returns
+		// multiple hits — `berserk run nmap` should run the container
+		// literally named "nmap" even if "nmap-scan" also matches.
+		var picked *docker.SearchResult
+		for i := range results {
+			if results[i].Container.Name == args[0] {
+				picked = &results[i]
+				break
+			}
+		}
+		if picked == nil {
+			if len(results) > 1 {
+				pterm.Warning.Printfln("Multiple containers match %q — be more specific:", args[0])
+				for _, r := range results {
+					pterm.DefaultBasicText.Printfln("  %s", pterm.Green(r.Container.Name))
+				}
+				return fmt.Errorf("ambiguous: %d matches", len(results))
+			}
+			picked = &results[0]
+		}
+
+		c := picked.Container
+		if strings.TrimSpace(c.Run) == "" {
+			return fmt.Errorf("container %q has empty run command in catalog", c.Name)
+		}
 		runStr := expandRunCmd(c.Run)
 
 		if runFlags != "" {
