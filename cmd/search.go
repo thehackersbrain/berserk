@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -51,7 +52,7 @@ Use 'berserk run <name>' to launch a matched container.`,
 
 		if opts.Query == "" && opts.Category == "" && opts.Installer == "" &&
 			searchProfile == "" && !searchInstalled && !searchAvailable {
-			return fmt.Errorf("provide a query or at least one filter (--category, --installer, --profile, --installed, --available)")
+			return fmt.Errorf("provide a query or filter (--category, --installer, --profile, --installed, --available)")
 		}
 
 		var results []registry.Tool
@@ -74,16 +75,27 @@ Use 'berserk run <name>' to launch a matched container.`,
 		installed := installedSet(results, st, true)
 		results = filterByInstallStatus(results, installed, searchInstalled, searchAvailable)
 
-		// Container search — only when there is a text query; tool-specific
-		// filters (--category, --installer, --profile) don't apply to containers.
+		// Container search — triggered by text query OR --category.
+		// --installer and --profile are tool-specific and don't apply to containers.
 		var containerResults []docker.SearchResult
-		if opts.Query != "" {
+		if opts.Query != "" || searchCategory != "" {
 			groups, err := loadDockerGroups()
 			if err != nil {
-				// Real parse/IO error (not just missing dir) — surface it.
 				pterm.Warning.Printfln("docker catalog: %v", err)
 			} else {
-				containerResults = docker.Search(groups, opts.Query)
+				switch {
+				case opts.Query != "" && searchCategory != "":
+					// Both set: search by category first, then filter by name.
+					for _, r := range docker.SearchByCategory(groups, searchCategory) {
+						if strings.Contains(strings.ToLower(r.Container.Name), strings.ToLower(opts.Query)) {
+							containerResults = append(containerResults, r)
+						}
+					}
+				case searchCategory != "":
+					containerResults = docker.SearchByCategory(groups, searchCategory)
+				default:
+					containerResults = docker.Search(groups, opts.Query)
+				}
 			}
 		}
 
