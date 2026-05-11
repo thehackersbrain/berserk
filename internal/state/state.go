@@ -179,5 +179,11 @@ func (s *State) saveLockedTo(path string) error {
 		os.Remove(tmp.Name())
 		return fmt.Errorf("closing staging file: %w", err)
 	}
-	return os.Rename(tmp.Name(), path)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		// Cross-device, permission, or destination-locked errors leave the
+		// tmp file orphaned in the state dir. Clean it up.
+		os.Remove(tmp.Name())
+		return fmt.Errorf("renaming staging file: %w", err)
+	}
+	return nil
 }

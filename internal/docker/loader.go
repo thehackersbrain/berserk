@@ -54,7 +54,10 @@ func LoadDir(dir string) ([]Group, error) {
 		return nil, fmt.Errorf("reading containers dir %s: %w", dir, err)
 	}
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("no container yaml files found in %s", dir)
+		// Treat an empty dir the same as a missing dir — both mean the
+		// catalog hasn't been populated yet. Callers handle nil groups
+		// with their own "no catalog" message.
+		return nil, nil
 	}
 
 	var all []Group
