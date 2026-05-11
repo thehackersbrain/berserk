@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -702,6 +703,83 @@ func TestLoadDirIgnoresNonYAML(t *testing.T) {
 	reg, err := LoadDir(dir)
 	if err != nil {
 		t.Fatalf("LoadDir error: %v", err)
+	}
+	if len(reg.Tools) != 1 {
+		t.Errorf("want 1 tool, got %d", len(reg.Tools))
+	}
+}
+
+// TestRejectsPathTraversalInToolName guards the invariant that tool names
+// flow into filepath.Join(installDir, name) and `sudo install`. A catalog
+// entry like name: "../../etc/passwd" must be rejected at load time,
+// otherwise a malicious catalog could overwrite arbitrary files as root.
+func TestRejectsPathTraversalInToolName(t *testing.T) {
+	cases := []string{
+		"../etc/passwd",
+		"../../etc/passwd",
+		"..",
+		".",
+		"foo/bar",
+		`foo\bar`,
+		"",
+	}
+	for _, name := range cases {
+		path := writeTestYAML(t, fmt.Sprintf(`tools:
+  - name: %q
+    installer: binary
+    repo: x/y
+`, name))
+		_, err := Load(path)
+		if err == nil {
+			t.Errorf("Load accepted unsafe name %q (should reject)", name)
+		}
+	}
+}
+
+func TestRejectsPathTraversalInAlias(t *testing.T) {
+	path := writeTestYAML(t, `tools:
+  - name: nuclei
+    installer: binary
+    repo: x/y
+    aliases: ["../etc/passwd"]
+`)
+	if _, err := Load(path); err == nil {
+		t.Error("Load accepted unsafe alias (should reject)")
+	}
+}
+
+// TestLoadDirSkipsContainersDir guards the invariant that registry.LoadDir
+// must skip the containers/ subdirectory entirely. docker catalog yaml is a
+// top-level list (not a registry map), and yaml.Unmarshal into Registry
+// would error on it — silently breaking every command that calls
+// loadContext when a user populates configs/containers/.
+func TestLoadDirSkipsContainersDir(t *testing.T) {
+	dir := writeFiles(t, map[string]string{
+		"tools.yaml": `tools:
+  - name: a
+    installer: pipx
+    repo: x/a
+`,
+	})
+	containersDir := filepath.Join(dir, "containers")
+	if err := os.MkdirAll(containersDir, 0o755); err != nil {
+		t.Fatalf("mkdir containers: %v", err)
+	}
+	// A top-level YAML list — would fail Registry unmarshalling if visited.
+	body := `- name: "Some Group"
+  description: "..."
+  containers:
+    - name: foo
+      command: "docker pull foo"
+      run: "docker run foo"
+`
+	if err := os.WriteFile(filepath.Join(containersDir, "docker.yaml"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write docker.yaml: %v", err)
+	}
+
+	reg, err := LoadDir(dir)
+	if err != nil {
+		t.Fatalf("LoadDir should skip containers/, got error: %v", err)
 	}
 	if len(reg.Tools) != 1 {
 		t.Errorf("want 1 tool, got %d", len(reg.Tools))

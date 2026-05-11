@@ -100,4 +100,3 @@ func addGem(s Snapshot) {
 		}
 	}
 }
-

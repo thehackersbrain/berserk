@@ -91,10 +91,21 @@ func (s *State) Add(t registry.Tool) error {
 	if s.tools == nil {
 		s.tools = map[string]Entry{}
 	}
+	prev, hadPrev := s.tools[t.Name]
 	s.tools[t.Name] = Entry{
 		Installer: t.Installer,
 	}
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// Roll back the in-memory mutation so callers that read state in
+		// the same process don't see an entry that isn't on disk.
+		if hadPrev {
+			s.tools[t.Name] = prev
+		} else {
+			delete(s.tools, t.Name)
+		}
+		return err
+	}
+	return nil
 }
 
 // Remove drops a tool from state and persists. Removing a missing entry is
@@ -103,11 +114,17 @@ func (s *State) Add(t registry.Tool) error {
 func (s *State) Remove(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.tools[name]; !ok {
+	prev, ok := s.tools[name]
+	if !ok {
 		return nil
 	}
 	delete(s.tools, name)
-	return s.saveLocked()
+	if err := s.saveLocked(); err != nil {
+		// Restore so in-memory state stays consistent with disk.
+		s.tools[name] = prev
+		return err
+	}
+	return nil
 }
 
 // Has reports whether berserk has recorded an install for name.
@@ -155,7 +172,9 @@ func (s *State) saveLocked() error {
 }
 
 func (s *State) saveLockedTo(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	// 0o700: the state file lists which offensive security tools the user has
+	// installed — information that should stay private on multi-user systems.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 
@@ -179,5 +198,11 @@ func (s *State) saveLockedTo(path string) error {
 		os.Remove(tmp.Name())
 		return fmt.Errorf("closing staging file: %w", err)
 	}
-	return os.Rename(tmp.Name(), path)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		// Cross-device, permission, or destination-locked errors leave the
+		// tmp file orphaned in the state dir. Clean it up.
+		os.Remove(tmp.Name())
+		return fmt.Errorf("renaming staging file: %w", err)
+	}
+	return nil
 }

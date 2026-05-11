@@ -129,6 +129,55 @@ func TestConcurrentAddIsSafe(t *testing.T) {
 	// need exact counts because some names will collide by construction.
 }
 
+// TestAddRollsBackOnSaveFailure ensures the in-memory map stays consistent
+// with disk when saveLocked fails (disk full, perm denied, etc.). Without
+// the rollback, callers in the same process would see Has(name)==true for
+// a tool that isn't recorded on disk.
+func TestAddRollsBackOnSaveFailure(t *testing.T) {
+	dir := withStateDir(t)
+	// Pre-create the berserk subdir, then make it read-only so CreateTemp
+	// inside saveLockedTo fails.
+	berserkDir := filepath.Join(dir, "berserk")
+	if err := os.MkdirAll(berserkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(berserkDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(berserkDir, 0o755) })
+
+	s, _ := Load()
+	err := s.Add(registry.Tool{Name: "newtool", Installer: "pipx"})
+	if err == nil {
+		t.Fatal("expected save to fail on read-only dir")
+	}
+	if s.Has("newtool") {
+		t.Error("in-memory state should be rolled back after save failure")
+	}
+}
+
+func TestRemoveRollsBackOnSaveFailure(t *testing.T) {
+	dir := withStateDir(t)
+	s, _ := Load()
+	if err := s.Add(registry.Tool{Name: "tool", Installer: "pipx"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Make the dir read-only so the next saveLocked fails.
+	berserkDir := filepath.Join(dir, "berserk")
+	if err := os.Chmod(berserkDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(berserkDir, 0o755) })
+
+	if err := s.Remove("tool"); err == nil {
+		t.Fatal("expected Remove to fail on read-only dir")
+	}
+	if !s.Has("tool") {
+		t.Error("in-memory state should retain entry after Remove save failure")
+	}
+}
+
 func TestSaveCreatesParentDir(t *testing.T) {
 	dir := withStateDir(t)
 	// Ensure the berserk subdir doesn't exist yet.

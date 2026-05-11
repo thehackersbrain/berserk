@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -57,10 +58,21 @@ var selfUpdateCmd = &cobra.Command{
 			return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
 		}
 
-		// Stage in same dir as exe so rename is atomic (same filesystem).
-		tmp, err := os.CreateTemp(filepath.Dir(exe), ".berserk-update-*")
+		// Stage in the exe's dir when writable (atomic rename), otherwise
+		// stage in /tmp and finalize via `sudo install`. The Makefile's
+		// default install location is /usr/local/bin which the invoking
+		// user typically can't write to without sudo — without this path,
+		// `berserk self-update` failed with a confusing "permission denied"
+		// for the majority of installed users.
+		stageDir := filepath.Dir(exe)
+		needsSudo := !dirWritable(stageDir)
+		if needsSudo {
+			stageDir = "" // /tmp via empty dir to os.CreateTemp
+		}
+
+		tmp, err := os.CreateTemp(stageDir, ".berserk-update-*")
 		if err != nil {
-			return err
+			return fmt.Errorf("staging download: %w", err)
 		}
 		defer os.Remove(tmp.Name()) //nolint:errcheck
 
@@ -68,18 +80,46 @@ var selfUpdateCmd = &cobra.Command{
 			tmp.Close() //nolint:errcheck
 			return err
 		}
-		tmp.Close() //nolint:errcheck
+		if err := tmp.Close(); err != nil {
+			return fmt.Errorf("closing staged file: %w", err)
+		}
 
 		if err := os.Chmod(tmp.Name(), 0o755); err != nil {
 			return err
 		}
-		if err := os.Rename(tmp.Name(), exe); err != nil {
-			return fmt.Errorf("replacing binary: %w", err)
+
+		if needsSudo {
+			// `install` copies (not renames) — works across filesystems and
+			// over a running binary on Linux (the kernel keeps the inode of
+			// the running text segment open; the path swap is fine).
+			installCmd := exec.Command("sudo", "install", "-m", "0755", tmp.Name(), exe)
+			installCmd.Stdin = os.Stdin
+			installCmd.Stdout = os.Stdout
+			installCmd.Stderr = os.Stderr
+			if err := installCmd.Run(); err != nil {
+				return fmt.Errorf("sudo install %s: %w", exe, err)
+			}
+		} else {
+			if err := os.Rename(tmp.Name(), exe); err != nil {
+				return fmt.Errorf("replacing binary: %w", err)
+			}
 		}
 
 		printOK("berserk updated successfully")
 		return nil
 	},
+}
+
+// dirWritable probes whether the invoking user can create files in dir.
+// Used to decide between atomic rename and the sudo-install fallback.
+func dirWritable(dir string) bool {
+	probe, err := os.CreateTemp(dir, ".berserk-probe-*")
+	if err != nil {
+		return false
+	}
+	probe.Close()           //nolint:errcheck
+	os.Remove(probe.Name()) //nolint:errcheck
+	return true
 }
 
 func init() {

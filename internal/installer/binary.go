@@ -106,10 +106,16 @@ func Binary(tool registry.Tool, installDir, githubToken string) error {
 	}
 
 	if _, err := io.Copy(tmp, dlResp.Body); err != nil {
-		tmp.Close()
+		tmp.Close() //nolint:errcheck
 		return fmt.Errorf("writing download: %w", err)
 	}
-	tmp.Close()
+	// Capture the close error — ENOSPC and late flush failures only surface
+	// here, not from io.Copy (which returns once the user-space write loop
+	// finishes). Without this, a full disk produced a truncated tmp file
+	// that extractTarGz happily read as a valid archive header.
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("flushing download: %w", err)
+	}
 
 	finalDest := filepath.Join(installDir, tool.Name)
 
