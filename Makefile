@@ -38,7 +38,9 @@ run: build
 install: build
 	sudo mkdir -p $(DESTDIR)$(BINDIR)
 	sudo cp $(BINARY) $(DESTDIR)$(BINDIR)/$(BINARY)
-	sudo rm -rf $(DESTDIR)$(CONFIGDIR)
+	# Do NOT touch $(CONFIGDIR) here — it holds the user's synced catalog
+	# (populated by `berserk sync`). An upgrade install would wipe it and
+	# force every user to re-sync to recover their tool registry.
 
 ## uninstall: remove files placed by `make install`
 .PHONY: uninstall
