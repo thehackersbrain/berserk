@@ -16,7 +16,7 @@ import (
 // runDockerClean is called when berserk --docker-clean is passed.
 func runDockerClean(cmd *cobra.Command) error {
 	assumeYes := false
-	if f := rootCmd.PersistentFlags().Lookup("yes"); f != nil {
+	if f := cmd.PersistentFlags().Lookup("yes"); f != nil {
 		assumeYes, _ = strconv.ParseBool(f.Value.String())
 	}
 
