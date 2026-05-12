@@ -1,0 +1,11 @@
+- while running `berserk install <package>` if berserk registry don't have the tool, fallback to system package manager
+  - example: berserk install tmux (fallbacks should not be tracked by berserk state)
+  - [INFO] tmux not found in Berserk Registry
+  - [INFO] Falling back to pacman backend
+- can you go ahead and add a depends section in tools, as some of the tools depends on system package, so we can add it
+  - example (depends will not be tracked by berserk state)
+    - depends:
+      - arch: [dep1, dep2]
+      - debian: [dep1, dep2]
+- allow modifications via docker specific yaml files
+- include option to add more category and profiles yaml
