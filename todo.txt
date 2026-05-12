@@ -8,4 +8,4 @@
       - arch: [dep1, dep2]
       - debian: [dep1, dep2]
 - allow modifications via docker specific yaml files
-- include option to add more category and profiles yaml
+- include option to add more category and profiles yaml (if not already there in one way or another)
