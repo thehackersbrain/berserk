@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	installProfile string
-	installAll     bool
-	installDryRun  bool
+	installProfile    string
+	installCategories []string
+	installAll        bool
+	installDryRun     bool
 )
 
 // installItem wraps a tool with provenance: registry hits flow through
@@ -32,7 +33,7 @@ var installCmd = &cobra.Command{
 	Use:   "install [tool...]",
 	Short: "Install one or more tools",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// --all and --profile are already mutually exclusive via cobra.
+		// --all, --profile and --category are already mutually exclusive via cobra.
 		// Catch the orthogonal case: positional args alongside either
 		// flag silently dropped the args before, which masked user
 		// intent.
@@ -41,6 +42,9 @@ var installCmd = &cobra.Command{
 		}
 		if installProfile != "" && len(args) > 0 {
 			return fmt.Errorf("--profile takes no positional args; drop the tool names")
+		}
+		if len(installCategories) > 0 && len(args) > 0 {
+			return fmt.Errorf("--category takes no positional args; drop the tool names")
 		}
 
 		reg, d, opts, err := loadContext()
@@ -60,13 +64,19 @@ var installCmd = &cobra.Command{
 				return err
 			}
 			items = toItems(tools)
+		case len(installCategories) > 0:
+			tools := reg.ToolsForCategories(installCategories)
+			if len(tools) == 0 {
+				return fmt.Errorf("no tools found in category/categories: %s", strings.Join(installCategories, ", "))
+			}
+			items = toItems(tools)
 		case len(args) > 0:
 			items, err = resolveInstallArgs(args, reg, d)
 			if err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("no tools specified — pass tool names, --profile, or --all")
+			return fmt.Errorf("no tools specified — pass tool names, --profile, --category, or --all")
 		}
 
 		// Drop registry tools that don't fit the current distro (e.g. system-
@@ -280,8 +290,9 @@ func toolFitsDistro(t registry.Tool, d distro.Distro) bool {
 
 func init() {
 	installCmd.Flags().StringVarP(&installProfile, "profile", "p", "", "install all tools in a profile")
+	installCmd.Flags().StringSliceVarP(&installCategories, "category", "c", nil, "install all tools in one or more categories")
 	installCmd.Flags().BoolVar(&installAll, "all", false, "install all tools")
 	installCmd.Flags().BoolVar(&installDryRun, "dry-run", false, "show what would be installed without doing it")
-	installCmd.MarkFlagsMutuallyExclusive("all", "profile")
+	installCmd.MarkFlagsMutuallyExclusive("all", "profile", "category")
 	rootCmd.AddCommand(installCmd)
 }

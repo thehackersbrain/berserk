@@ -10,6 +10,7 @@ import (
 
 	"github.com/pterm/pterm"
 	"github.com/thehackersbrain/berserk/internal/docker"
+	"github.com/thehackersbrain/berserk/internal/registry"
 	"gopkg.in/yaml.v3"
 )
 
@@ -130,13 +131,23 @@ func ensureVolumeDirs(paths []string) error {
 // Returns (nil, nil) when the directory does not exist — callers in
 // best-effort contexts (search) degrade silently. Real parse/IO errors
 // are returned as-is so the caller can surface them.
-func loadDockerGroups() ([]docker.Group, error) {
+//
+// If reg is non-nil, the container categories are validated against the
+// registry's declared categories.
+func loadDockerGroups(reg *registry.Registry) ([]docker.Container, error) {
 	dir := filepath.Join(configDir(), "containers")
-	groups, err := docker.LoadDir(dir)
+	containers, err := docker.LoadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("docker catalog at %s: %w", dir, err)
 	}
-	return groups, nil
+
+	if reg != nil {
+		if err := docker.Validate(containers, reg.CategoryNames()); err != nil {
+			return nil, err
+		}
+	}
+
+	return containers, nil
 }
 
 // printContainerDetails prints a container's name, description, pull/run
