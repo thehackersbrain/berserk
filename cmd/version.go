@@ -5,7 +5,7 @@ import (
 	"runtime"
 )
 
-var Version = "v0.1.7"
+var Version = "v0.2.0"
 
 func init() {
 	rootCmd.Version = Version
