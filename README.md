@@ -112,15 +112,16 @@ berserk --docker-clean                     # nuke all containers/images + ~/bers
 ```
 berserk install [tool...]            install tools by name
 berserk install --profile <name>     install all tools in a profile
+berserk install --category <cat...>  install all tools in one or more categories
 berserk install --all                install everything
 berserk install --dry-run ...        preview without installing
 berserk update [tool...]             update specific tools
 berserk update --profile <name>      update a profile
 berserk update                       fire all backend updaters in parallel
 berserk remove <tool>                remove a tool
-berserk list [-p] [-c] [-d]          list tools, profiles (-p), categories (-c), or Docker container groups (-d)
+berserk list [-p] [-c] [-d]          list tools, profiles (-p), categories (-c), or Docker containers (-d)
 berserk search [query] [filters]     ranked search across name/alias/category/desc + Docker containers by name
-                  [-c CAT]             filter tools by category, OR Docker groups/categories by name
+                  [-c CAT]             filter tools AND Docker containers by category
                   [-b INSTALLER]       filter by installer
                   [-p PROFILE]         search within a profile
                   [-i]                 only show installed tools
@@ -139,7 +140,7 @@ Operations that need root (system-package installs, `/usr/local/bin` writes, `be
 ## Profiles & categories
 
 Profiles and categories are **declared** in `profiles.yaml` and
-`categories.yaml`. Tools opt into them by listing their names:
+`categories.yaml`. Tools and Docker containers opt into them by listing their names:
 
 ```yaml
 # profiles.yaml
@@ -167,10 +168,9 @@ tools:
     repo: Pennyw0rth/NetExec
 ```
 
-Validation enforces the contract: a tool referencing an undeclared profile
+Validation enforces the contract: an entry referencing an undeclared profile
 or category, or a profile including an undeclared profile, is a hard error.
-Composition rolls up at query time — `red-team` automatically resolves to
-every tool in `ad-attacks ∪ web ∪ post-exploitation ∪ credentials`.
+This applies to both tools and Docker containers.
 
 Run `berserk list --profiles` to see all declared profiles with their resolved
 member counts.
@@ -197,31 +197,24 @@ See `configs/packages/tools.yaml.example` for a worked entry per installer.
 
 ## Adding a container
 
-Edit any YAML under `containers/` in your config dir. Each file is a top-level
-list of groups; groups are either flat (`containers:` directly) or categorized
-(`categories:` of named buckets, each with `containers:`) — never both:
+Edit any YAML under `containers/` in your config dir. The catalog is a flat
+list of containers. Each entry must reference valid categories from
+`categories.yaml`:
 
 ```yaml
-- name: "Pentest Environments"
-  description: "Pre-built attacker boxes"
-  containers:
-    - name: kali-cli
-      description: "Headless Kali for one-off scans"
-      command: "docker pull kalilinux/kali-rolling"
-      run: "docker run --rm -it -v ~/berserk/containers/kali:/data kalilinux/kali-rolling"
-      runtime_comments:
-        - "- /data is mapped to ~/berserk/containers/kali"
+- name: kali-cli
+  description: "Official Kali Linux container with full toolset"
+  category: ["linux-cli"]
+  command: "docker pull kalilinux/kali-rolling"
+  run: "docker run -it --rm --network host --name kali -v ~/berserk/containers/kali/:/root/data kalilinux/kali-rolling /bin/bash"
+  runtime_comments:
+    - "- A local volume is mounted - Host: ~/berserk/containers/kali -- Container: /root/data"
 
-- name: "GUI Apps"
-  description: "X11/Wayland-forwarded tools"
-  categories:
-    - name: "Browsers"
-      description: "Hardened browser sandboxes"
-      containers:
-        - name: tor-browser
-          description: "Tor Browser in a container"
-          command: "docker pull domistyle/tor-browser"
-          run: "docker run --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix domistyle/tor-browser"
+- name: tor-browser
+  description: "Tor Browser in a container"
+  category: ["linux-gui"]
+  command: "docker pull domistyle/tor-browser"
+  run: "docker run --rm -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix domistyle/tor-browser"
 ```
 
 Path rewriting: any `~/btweak/containers/` or `~/btweak/docker/` in a `run`
@@ -236,6 +229,10 @@ name match when multiple containers match, and errors out if the catalog's
 `run` is empty or `-f` can't find a literal `docker run` to inject flags after.
 Use `-t` to launch in a new kitty terminal window instead of replacing the
 current process via `syscall.Exec`.
+
+`berserk list -d` displays the container catalog in a tabular format, showing
+the name, assigned categories, and description for each entry.
+
 
 ## How install detection works
 
