@@ -1,2 +1,0 @@
-- include option to add more category and profiles yaml (if not already there in one way or another)
-- include option to install tools via a category
