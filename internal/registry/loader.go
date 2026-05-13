@@ -458,6 +458,15 @@ func (r *Registry) resolveProfiles() error {
 	return nil
 }
 
+// CategoryNames returns the names of all declared categories.
+func (r *Registry) CategoryNames() []string {
+	names := make([]string, len(r.Categories))
+	for i, c := range r.Categories {
+		names[i] = c.Name
+	}
+	return names
+}
+
 func (r *Registry) FindTool(name string) (*Tool, bool) {
 	for i, t := range r.Tools {
 		if t.Name == name {

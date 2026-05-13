@@ -79,7 +79,7 @@ Use 'berserk run <name>' to launch a matched container.`,
 		// --installer and --profile are tool-specific and don't apply to containers.
 		var containerResults []docker.Container
 		if opts.Query != "" || searchCategory != "" {
-			containers, err := loadDockerGroups()
+			containers, err := loadDockerGroups(reg)
 			if err != nil {
 				pterm.Warning.Printfln("docker catalog: %v", err)
 			} else {

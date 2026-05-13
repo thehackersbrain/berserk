@@ -19,8 +19,13 @@ var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List tools, profiles, categories, or Docker container groups",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		reg, _, _, err := loadContext()
+		if err != nil {
+			return err
+		}
+
 		if listContainers {
-			containers, err := loadDockerGroups()
+			containers, err := loadDockerGroups(reg)
 			if err != nil {
 				return err
 			}
@@ -46,11 +51,6 @@ var listCmd = &cobra.Command{
 			pterm.DefaultBasicText.Printfln("%s Docker container(s) — run one with: berserk run <name>",
 				pterm.Bold.Sprintf("%d", len(containers)))
 			return nil
-		}
-
-		reg, _, _, err := loadContext()
-		if err != nil {
-			return err
 		}
 
 		if listCategories {

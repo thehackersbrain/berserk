@@ -69,3 +69,26 @@ func LoadDir(dir string) ([]Container, error) {
 	}
 	return all, nil
 }
+
+// Validate checks that every container's categories are present in the allowed
+// list. Returns a joined error of all violations.
+func Validate(containers []Container, allowed []string) error {
+	if len(allowed) == 0 {
+		return nil
+	}
+	valid := make(map[string]bool, len(allowed))
+	for _, a := range allowed {
+		valid[a] = true
+	}
+
+	var errs []error
+	for _, c := range containers {
+		for _, cat := range c.Category {
+			if !valid[cat] {
+				errs = append(errs, fmt.Errorf("container %q references unknown category %q (add it to categories.yaml)", c.Name, cat))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+

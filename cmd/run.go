@@ -22,7 +22,7 @@ var runCmd = &cobra.Command{
 	Short: "Run a Docker container from the catalog",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		containers, err := loadDockerGroups()
+		containers, err := loadDockerGroups(nil)
 		if err != nil {
 			return err
 		}
