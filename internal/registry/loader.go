@@ -529,6 +529,30 @@ func (r *Registry) CategoryToolCount(name string) int {
 	return n
 }
 
+// ToolsForCategories returns all tools that belong to any of the given categories.
+func (r *Registry) ToolsForCategories(categories []string) []Tool {
+	if len(categories) == 0 {
+		return nil
+	}
+	want := make(map[string]bool, len(categories))
+	for _, c := range categories {
+		want[c] = true
+	}
+
+	seen := map[string]bool{}
+	var out []Tool
+	for _, t := range r.Tools {
+		for _, cat := range t.Category {
+			if want[cat] && !seen[t.Name] {
+				seen[t.Name] = true
+				out = append(out, t)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // SearchOpts narrows a search by orthogonal facets. An empty field is ignored.
 // Filters are AND-combined with each other and with Query.
 type SearchOpts struct {
