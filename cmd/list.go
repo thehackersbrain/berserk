@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 
@@ -21,66 +20,32 @@ var listCmd = &cobra.Command{
 	Short: "List tools, profiles, categories, or Docker container groups",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if listContainers {
-			groups, err := loadDockerGroups()
+			containers, err := loadDockerGroups()
 			if err != nil {
 				return err
 			}
-			if len(groups) == 0 {
+			if len(containers) == 0 {
 				pterm.Info.Printfln("No Docker catalog found at %s/containers — run `berserk sync` or add container yaml files.", configDir())
 				return nil
 			}
 
-			var items []pterm.BulletListItem
-			for i, g := range groups {
-				items = append(items, pterm.BulletListItem{
-					Level:       0,
-					Text:        fmt.Sprintf("%d. %s", i+1, pterm.Bold.Sprint(pterm.Cyan(g.Name))),
-					BulletStyle: pterm.NewStyle(pterm.FgCyan),
-					Bullet:      "▸",
+			data := pterm.TableData{{"NAME", "CATEGORIES", "DESCRIPTION"}}
+			for _, c := range containers {
+				data = append(data, []string{
+					c.Name,
+					truncRunes(strings.Join(c.Category, ","), 30),
+					truncRunes(c.Description, 60),
 				})
-				items = append(items, pterm.BulletListItem{
-					Level:  1,
-					Text:   pterm.Gray(g.Description),
-					Bullet: " ",
-				})
+			}
 
-				if len(g.Categories) > 0 {
-					total := 0
-					for _, cat := range g.Categories {
-						total += len(cat.Containers)
-					}
-					items = append(items, pterm.BulletListItem{
-						Level:  1,
-						Text:   pterm.Yellow(fmt.Sprintf("%d categories, %d containers", len(g.Categories), total)),
-						Bullet: " ",
-					})
-					for j, cat := range g.Categories {
-						items = append(items, pterm.BulletListItem{
-							Level:       1,
-							Text:        fmt.Sprintf("%d.%d. %s %s", i+1, j+1, pterm.Magenta(cat.Name), pterm.Gray(fmt.Sprintf("(%d containers)", len(cat.Containers)))),
-							BulletStyle: pterm.NewStyle(pterm.FgMagenta),
-							Bullet:      "▸",
-						})
-					}
-				} else {
-					items = append(items, pterm.BulletListItem{
-						Level:  1,
-						Text:   pterm.Yellow(fmt.Sprintf("%d containers", len(g.Containers))),
-						Bullet: " ",
-					})
-					for _, c := range g.Containers {
-						items = append(items, pterm.BulletListItem{
-							Level:       2,
-							Text:        pterm.Green(c.Name),
-							BulletStyle: pterm.NewStyle(pterm.FgGreen),
-							Bullet:      "▸",
-						})
-					}
-				}
+			if err := pterm.DefaultTable.WithHasHeader().WithHeaderStyle(pterm.NewStyle(pterm.Bold)).WithData(data).Render(); err != nil {
+				return err
 			}
 
 			pterm.Println()
-			return pterm.DefaultBulletList.WithItems(items).Render()
+			pterm.DefaultBasicText.Printfln("%s Docker container(s) — run one with: berserk run <name>",
+				pterm.Bold.Sprintf("%d", len(containers)))
+			return nil
 		}
 
 		reg, _, _, err := loadContext()

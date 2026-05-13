@@ -130,13 +130,13 @@ func ensureVolumeDirs(paths []string) error {
 // Returns (nil, nil) when the directory does not exist — callers in
 // best-effort contexts (search) degrade silently. Real parse/IO errors
 // are returned as-is so the caller can surface them.
-func loadDockerGroups() ([]docker.Group, error) {
+func loadDockerGroups() ([]docker.Container, error) {
 	dir := filepath.Join(configDir(), "containers")
-	groups, err := docker.LoadDir(dir)
+	containers, err := docker.LoadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("docker catalog at %s: %w", dir, err)
 	}
-	return groups, nil
+	return containers, nil
 }
 
 // printContainerDetails prints a container's name, description, pull/run

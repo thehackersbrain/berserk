@@ -77,24 +77,24 @@ Use 'berserk run <name>' to launch a matched container.`,
 
 		// Container search — triggered by text query OR --category.
 		// --installer and --profile are tool-specific and don't apply to containers.
-		var containerResults []docker.SearchResult
+		var containerResults []docker.Container
 		if opts.Query != "" || searchCategory != "" {
-			groups, err := loadDockerGroups()
+			containers, err := loadDockerGroups()
 			if err != nil {
 				pterm.Warning.Printfln("docker catalog: %v", err)
 			} else {
 				switch {
 				case opts.Query != "" && searchCategory != "":
 					// Both set: search by category first, then filter by name.
-					for _, r := range docker.SearchByCategory(groups, searchCategory) {
-						if strings.Contains(strings.ToLower(r.Container.Name), strings.ToLower(opts.Query)) {
-							containerResults = append(containerResults, r)
+					for _, c := range docker.SearchByCategory(containers, searchCategory) {
+						if strings.Contains(strings.ToLower(c.Name), strings.ToLower(opts.Query)) {
+							containerResults = append(containerResults, c)
 						}
 					}
 				case searchCategory != "":
-					containerResults = docker.SearchByCategory(groups, searchCategory)
+					containerResults = docker.SearchByCategory(containers, searchCategory)
 				default:
-					containerResults = docker.Search(groups, opts.Query)
+					containerResults = docker.Search(containers, opts.Query)
 				}
 			}
 		}
@@ -125,13 +125,11 @@ Use 'berserk run <name>' to launch a matched container.`,
 			pterm.Println()
 			pterm.DefaultBasicText.Printfln("%s Docker container result(s)", pterm.Bold.Sprintf("%d", len(containerResults)))
 			pterm.Println()
-			for _, r := range containerResults {
-				loc := pterm.Cyan(r.GroupName)
-				if r.CategoryName != "" {
-					loc += pterm.Gray(" → ") + pterm.Magenta(r.CategoryName)
+			for _, c := range containerResults {
+				if len(c.Category) > 0 {
+					pterm.DefaultBasicText.Printfln("  %s", pterm.Magenta(strings.Join(c.Category, ", ")))
 				}
-				pterm.DefaultBasicText.Printfln("  %s", loc)
-				printContainerDetails(configDir(), r.Container)
+				printContainerDetails(configDir(), c)
 				pterm.Println()
 			}
 		}

@@ -1,3 +1,5 @@
+// Package docker handles the docker related things
+// keeping the docker and tools registry seperate
 package docker
 
 import (
@@ -11,26 +13,26 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// LoadFile reads a docker catalog YAML file (top-level list of Group entries)
-// and returns the parsed groups.
-func LoadFile(path string) ([]Group, error) {
+// LoadFile reads a docker catalog YAML file (top-level list of Container entries)
+// and returns the parsed containers.
+func LoadFile(path string) ([]Container, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	var groups []Group
-	if err := yaml.Unmarshal(data, &groups); err != nil {
+	var containers []Container
+	if err := yaml.Unmarshal(data, &containers); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 
-	return groups, nil
+	return containers, nil
 }
 
-// LoadDir reads every *.yaml / *.yml file in dir and merges their Group lists
-// in lexical order. Returns nil groups (no error) when dir does not exist —
+// LoadDir reads every *.yaml / *.yml file in dir and merges their Container lists
+// in lexical order. Returns nil containers (no error) when dir does not exist —
 // callers in search/list context degrade gracefully without a catalog.
-func LoadDir(dir string) ([]Group, error) {
+func LoadDir(dir string) ([]Container, error) {
 	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -54,19 +56,16 @@ func LoadDir(dir string) ([]Group, error) {
 		return nil, fmt.Errorf("reading containers dir %s: %w", dir, err)
 	}
 	if len(paths) == 0 {
-		// Treat an empty dir the same as a missing dir — both mean the
-		// catalog hasn't been populated yet. Callers handle nil groups
-		// with their own "no catalog" message.
 		return nil, nil
 	}
 
-	var all []Group
+	var all []Container
 	for _, p := range paths {
-		groups, err := LoadFile(p)
+		containers, err := LoadFile(p)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, groups...)
+		all = append(all, containers...)
 	}
 	return all, nil
 }
