@@ -162,6 +162,7 @@ var doctorCmd = &cobra.Command{
 		var items []pterm.BulletListItem
 		ok := 0
 		cargoOK := false
+		pipxOK := false
 		inPATH := pathDirs()
 
 		for _, b := range backends {
@@ -186,6 +187,9 @@ var doctorCmd = &cobra.Command{
 
 			if b.name == "cargo" {
 				cargoOK = true
+			}
+			if b.name == "pipx" {
+				pipxOK = true
 			}
 
 			if b.binPath == nil {
@@ -213,6 +217,24 @@ var doctorCmd = &cobra.Command{
 			} else {
 				items = append(items, bulletItem(true,
 					fmt.Sprintf("  %s bin dir %s", b.name, pterm.Gray(binDir))))
+			}
+		}
+
+		if pipxOK {
+			items = append(items, bulletItem(true,
+				fmt.Sprintf("  pipx   %s", pterm.Gray("initializing shared venv..."))))
+			if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
+				return err
+			}
+			items = nil
+
+			sharedCmd := exec.Command("pipx", "upgrade-shared")
+			sharedCmd.Stdout = os.Stdout
+			sharedCmd.Stderr = os.Stderr
+			if err := sharedCmd.Run(); err != nil {
+				pterm.Warning.Printfln("pipx upgrade-shared failed: %v", err)
+			} else {
+				pterm.Success.Println("pipx shared venv ready — parallel installs will not race on initialization.")
 			}
 		}
 
