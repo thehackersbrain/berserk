@@ -6,3 +6,4 @@ CLAUDE.md
 btweak/
 configs/
 *.txt
+*.c
