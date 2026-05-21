@@ -91,7 +91,7 @@ Global flags that aren't in `config.yaml`:
 ## Quick start
 
 ```bash
-berserk doctor                 # verify pipx, cargo, go, gem, npm are installed
+berserk doctor                 # verify pipx, cargo, go, gem, npm are installed and fix PATH
 berserk sync                   # fetch the latest curated tools catalog
 berserk list                   # browse the curated tools
 berserk list -d                # browse the Docker container catalog
@@ -126,10 +126,11 @@ berserk search [query] [filters]     ranked search across name/alias/category/de
                   [-p PROFILE]         search within a profile
                   [-i]                 only show installed tools
                   [--available]        only show tools not yet installed
+                  [-n LIMIT]           limit the number of results
 berserk search info <tool>           show source, repo, installer for a tool (note: subcommand of search)
 berserk run <container> [-t] [-f F]  run a Docker container from the catalog (-t = new kitty terminal, -f = extra docker run flags)
 berserk sync                         sync tools catalog (clone if absent, pull if present)
-berserk doctor                       verify all backends are available
+berserk doctor                       verify all backends are available, fix PATH, and install helpers
 berserk self-update                  update berserk itself
 berserk --docker-clean               stop all containers, rmi all images, prune, delete ~/berserk/{docker,containers}
 berserk version
@@ -166,6 +167,9 @@ tools:
     profiles: [ad-attacks] # must reference profiles.yaml
     installer: pipx
     repo: Pennyw0rth/NetExec
+    depends: # optional build/runtime deps
+      arch: [openssl, pkgconf]
+      debian: [libssl-dev, pkg-config]
 ```
 
 Validation enforces the contract: an entry referencing an undeclared profile
@@ -189,7 +193,7 @@ Edit any tool yaml file under `packages/` in your config dir (`packages/tools.ya
 | `binary`  | `repo` + `asset_pattern`                           | `repo: BishopFox/sliver`, `asset_pattern: sliver-client_linux` |
 | `system`  | `arch_package` or `debian_package` (default: name) |                                                                |
 
-Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only).
+Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only), `depends` (map of distro to package list).
 
 See `configs/packages/tools.yaml.example` for a worked entry per installer.
 
