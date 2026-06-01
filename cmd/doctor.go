@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+	"github.com/thehackersbrain/berserk/internal/installer"
 )
 
 type backend struct {
@@ -261,6 +263,19 @@ var doctorCmd = &cobra.Command{
 			}
 		}
 
+		// Ensure /opt/berserk exists and is user-owned for git-installer repos.
+		if u, err := user.Current(); err != nil {
+			pterm.Warning.Printfln("cannot determine current user: %v", err)
+		} else {
+			if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
+				return err
+			}
+			items = nil
+
+			dirOK, msg := ensureGitInstallDir(installer.GitInstallDir, u.Uid+":"+u.Gid)
+			items = append(items, bulletItem(dirOK, fmt.Sprintf("%-6s %s", "git", pterm.Gray(msg))))
+		}
+
 		if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
 			return err
 		}
@@ -308,6 +323,34 @@ func pathAlreadyExports(rcContent, binDir string) bool {
 		}
 	}
 	return false
+}
+
+// ensureGitInstallDir guarantees that dir exists and is writable by the current
+// user. If not, it creates it and chowns it via sudo. Returns (true, msg) on
+// success, (false, msg) on failure.
+func ensureGitInstallDir(dir, chownArg string) (bool, string) {
+	tmp, err := os.CreateTemp(dir, ".berserk-probe-*")
+	if err == nil {
+		tmp.Close()           //nolint:errcheck
+		os.Remove(tmp.Name()) //nolint:errcheck
+		return true, dir + " ready"
+	}
+
+	mkCmd := exec.Command("sudo", "mkdir", "-p", dir)
+	mkCmd.Stdout = os.Stdout
+	mkCmd.Stderr = os.Stderr
+	if err := mkCmd.Run(); err != nil {
+		return false, fmt.Sprintf("sudo mkdir %s failed: %v", dir, err)
+	}
+
+	chCmd := exec.Command("sudo", "chown", chownArg, dir)
+	chCmd.Stdout = os.Stdout
+	chCmd.Stderr = os.Stderr
+	if err := chCmd.Run(); err != nil {
+		return false, fmt.Sprintf("sudo chown %s %s failed: %v", chownArg, dir, err)
+	}
+
+	return true, dir + " created"
 }
 
 func bulletItem(success bool, text string) pterm.BulletListItem {

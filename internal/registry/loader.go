@@ -35,6 +35,7 @@ type Tool struct {
 	Aliases       []string `yaml:"aliases"`
 	Installer     string   `yaml:"installer"`
 	Repo          string   `yaml:"repo"`
+	Branch        string   `yaml:"branch"`
 	Package       string   `yaml:"package"`
 	PythonVersion string   `yaml:"python_version"`
 	AssetPattern  string   `yaml:"asset_pattern"`
@@ -315,6 +316,10 @@ func (r *Registry) Validate() error {
 		case "binary":
 			if t.Repo == "" {
 				errs = append(errs, fmt.Sprintf("%s: binary installer needs 'repo'", ctx))
+			}
+		case "git":
+			if t.Repo == "" {
+				errs = append(errs, fmt.Sprintf("%s: git installer needs 'repo'", ctx))
 			}
 		case "custom":
 			if len(t.Steps) == 0 {

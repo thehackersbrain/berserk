@@ -53,6 +53,8 @@ func Install(tool registry.Tool, d distro.Distro, opts Options) error {
 		return Npm(tool)
 	case "binary":
 		return Binary(tool, opts.InstallDir, opts.GithubToken)
+	case "git":
+		return GitClone(tool)
 	case "system":
 		return System(tool, d, opts.AssumeYes)
 	case "custom":
@@ -89,6 +91,8 @@ func Update(tool registry.Tool, d distro.Distro, opts Options) error {
 		return CargoReinstall(tool)
 	case "gem":
 		return GemUpgrade(tool)
+	case "git":
+		return GitPull(tool)
 	case "system":
 		return SystemUpdate(tool, d, opts.AssumeYes)
 	case "custom":
@@ -156,6 +160,9 @@ func Remove(tool registry.Tool, d distro.Distro, opts Options) error {
 		default:
 			return fmt.Errorf("system installer: unsupported distro %s", d)
 		}
+
+	case "git":
+		return GitRemove(tool)
 
 	case "custom":
 		return fmt.Errorf("%s was installed via a custom script; remove it manually", tool.Name)

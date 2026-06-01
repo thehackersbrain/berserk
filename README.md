@@ -91,7 +91,7 @@ Global flags that aren't in `config.yaml`:
 ## Quick start
 
 ```bash
-berserk doctor                 # verify pipx, cargo, go, gem, npm are installed and fix PATH
+berserk doctor                 # verify backends, fix PATH, create /opt/berserk for git-installer repos
 berserk sync                   # fetch the latest curated tools catalog
 berserk list                   # browse the curated tools
 berserk list -d                # browse the Docker container catalog
@@ -130,7 +130,7 @@ berserk search [query] [filters]     ranked search across name/alias/category/de
 berserk search info <tool>           show source, repo, installer for a tool (note: subcommand of search)
 berserk run <container> [-t] [-f F]  run a Docker container from the catalog (-t = new kitty terminal, -f = extra docker run flags)
 berserk sync                         sync tools catalog (clone if absent, pull if present)
-berserk doctor                       verify all backends are available, fix PATH, and install helpers
+berserk doctor                       verify all backends, fix PATH, install helpers, create /opt/berserk
 berserk self-update                  update berserk itself
 berserk --docker-clean               stop all containers, rmi all images, prune, delete ~/berserk/{docker,containers}
 berserk version
@@ -192,8 +192,9 @@ Edit any tool yaml file under `packages/` in your config dir (`packages/tools.ya
 | `npm`     | (`package` defaults)                               | `package: <pkg>`                                               |
 | `binary`  | `repo` + `asset_pattern`                           | `repo: BishopFox/sliver`, `asset_pattern: sliver-client_linux` |
 | `system`  | `arch_package` or `debian_package` (default: name) |                                                                |
+| `git`     | `repo`                                             | `repo: flangvik/SharpCollection`                               |
 
-Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only), `depends` (map of distro to package list).
+Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only), `branch` (git-only, defaults to repo default branch), `depends` (map of distro to package list).
 
 See `configs/packages/tools.yaml.example` for a worked entry per installer.
 
@@ -249,6 +250,11 @@ how a tool like `impacket` (whose binaries are `smbserver.py`,
 as installed once berserk has installed it. PATH lookup is kept as a
 fallback so tools you installed before berserk knew about them still register.
 
+`git`-installer tools have no PATH fallback at all — a cloned repo never
+puts a binary on PATH. The state file is the sole source of truth for them.
+Repos cloned manually into `/opt/berserk` before berserk knew about them
+will not appear as installed until berserk installs them itself.
+
 ## How update works
 
 `berserk update` (no args) fires every backend updater in parallel:
@@ -258,6 +264,7 @@ fallback so tools you installed before berserk knew about them still register.
 - `gem update --user-install <pkg>` for every gem-installed tool tracked in state
 - `sudo npm update -g` (updates every globally-installed npm package, not just berserk's)
 - `go install <pkg>@latest` for every go-installed tool tracked in state
+- `git pull --ff-only` in `/opt/berserk/<name>` for every git-installed repo tracked in state
 
 Per-tool updates (`berserk update <name>`) re-run the appropriate install/upgrade
 command at latest. Use `berserk update --backend <pipx|cargo|gem|npm|go>` to
