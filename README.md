@@ -194,7 +194,25 @@ Edit any tool yaml file under `packages/` in your config dir (`packages/tools.ya
 | `system`  | `arch_package` or `debian_package` (default: name) |                                                                |
 | `git`     | `repo`                                             | `repo: flangvik/SharpCollection`                               |
 
-Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only), `branch` (git-only, defaults to repo default branch), `depends` (map of distro to package list).
+Optional fields: `description`, `category` (list, must exist in categories.yaml), `profiles` (list, must exist in profiles.yaml), `aliases` (list), `python_version` (pipx-only), `branch` (git-only, defaults to repo default branch), `entry_script` (git-only, script filename to invoke), `runtime` (git-only, required when `entry_script` is set; currently `python`), `pip_deps` (git-only, explicit pip packages — additive with `requirements.txt`), `depends` (map of distro to package list).
+
+#### git + Python script tools
+
+For repos that are bare Python scripts rather than installable packages, set `entry_script` and `runtime: python`. After cloning, berserk creates an isolated virtualenv at `/opt/berserk/venvs/<name>`, installs deps from `requirements.txt` (if present) and any explicit `pip_deps` (additive), then writes a bash shim to `/opt/berserk/bin/<name>` that invokes the script inside the venv:
+
+```yaml
+- name: targetedkerberoast
+  description: "Kerberoast accounts that have no SPN by temporarily adding one"
+  category: [ad, credentials, password-attacks]
+  profiles: [ad-attacks]
+  installer: git
+  repo: ShutdownRepo/targetedKerberoast
+  entry_script: targetedKerberoast.py
+  runtime: python
+  # pip_deps: [impacket, ldap3]   # additive on top of requirements.txt
+```
+
+`berserk doctor` creates `/opt/berserk/bin` and adds it to `PATH` (same shell-rc logic as other bin dirs). On `berserk update <name>`, deps are refreshed inside the existing venv. On `berserk remove <name>`, the clone, venv, and shim are all removed.
 
 See `configs/packages/tools.yaml.example` for a worked entry per installer.
 

@@ -36,6 +36,9 @@ type Tool struct {
 	Installer     string   `yaml:"installer"`
 	Repo          string   `yaml:"repo"`
 	Branch        string   `yaml:"branch"`
+	EntryScript   string   `yaml:"entry_script"`
+	Runtime       string   `yaml:"runtime"`
+	PipDeps       []string `yaml:"pip_deps"`
 	Package       string   `yaml:"package"`
 	PythonVersion string   `yaml:"python_version"`
 	AssetPattern  string   `yaml:"asset_pattern"`
@@ -320,6 +323,12 @@ func (r *Registry) Validate() error {
 		case "git":
 			if t.Repo == "" {
 				errs = append(errs, fmt.Sprintf("%s: git installer needs 'repo'", ctx))
+			}
+			if t.EntryScript != "" && t.Runtime == "" {
+				errs = append(errs, fmt.Sprintf("%s: entry_script requires 'runtime' to be set", ctx))
+			}
+			if t.Runtime != "" && t.Runtime != "python" {
+				errs = append(errs, fmt.Sprintf("%s: unsupported runtime %q (supported: python)", ctx, t.Runtime))
 			}
 		case "custom":
 			if len(t.Steps) == 0 {

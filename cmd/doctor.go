@@ -263,7 +263,7 @@ var doctorCmd = &cobra.Command{
 			}
 		}
 
-		// Ensure /opt/berserk exists and is user-owned for git-installer repos.
+		// Ensure /opt/berserk and /opt/berserk/bin exist and are user-owned.
 		if u, err := user.Current(); err != nil {
 			pterm.Warning.Printfln("cannot determine current user: %v", err)
 		} else {
@@ -274,6 +274,28 @@ var doctorCmd = &cobra.Command{
 
 			dirOK, msg := ensureGitInstallDir(installer.GitInstallDir, u.Uid+":"+u.Gid)
 			items = append(items, bulletItem(dirOK, fmt.Sprintf("%-6s %s", "git", pterm.Gray(msg))))
+
+			if dirOK {
+				binDir := installer.GitBinDir
+				if err := os.MkdirAll(binDir, 0o755); err != nil {
+					items = append(items, bulletItem(false,
+						fmt.Sprintf("  git  bin dir %s: %v", binDir, err)))
+				} else if !inPATH[filepath.Clean(binDir)] {
+					items = append(items, bulletItem(false,
+						fmt.Sprintf("  git  bin dir %s is not in PATH — attempting to fix...",
+							pterm.Yellow(binDir))))
+					if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
+						return err
+					}
+					items = nil
+					if err := appendToPATH(binDir); err != nil {
+						pterm.Warning.Printfln("could not add %s to PATH: %v", binDir, err)
+					}
+				} else {
+					items = append(items, bulletItem(true,
+						fmt.Sprintf("  git  bin dir %s", pterm.Gray(binDir))))
+				}
+			}
 		}
 
 		if err := pterm.DefaultBulletList.WithItems(items).Render(); err != nil {
