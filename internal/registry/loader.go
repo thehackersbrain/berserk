@@ -36,7 +36,7 @@ type Tool struct {
 	Installer     string   `yaml:"installer"`
 	Repo          string   `yaml:"repo"`
 	Branch        string   `yaml:"branch"`
-	EntryScript   string   `yaml:"entry_script"`
+	EntryScripts  []string `yaml:"entry_scripts"`
 	Runtime       string   `yaml:"runtime"`
 	PipDeps       []string `yaml:"pip_deps"`
 	Package       string   `yaml:"package"`
@@ -324,8 +324,8 @@ func (r *Registry) Validate() error {
 			if t.Repo == "" {
 				errs = append(errs, fmt.Sprintf("%s: git installer needs 'repo'", ctx))
 			}
-			if t.EntryScript != "" && t.Runtime == "" {
-				errs = append(errs, fmt.Sprintf("%s: entry_script requires 'runtime' to be set", ctx))
+			if len(t.EntryScripts) > 0 && t.Runtime == "" {
+				errs = append(errs, fmt.Sprintf("%s: entry_scripts requires 'runtime' to be set", ctx))
 			}
 			if t.Runtime != "" && t.Runtime != "python" {
 				errs = append(errs, fmt.Sprintf("%s: unsupported runtime %q (supported: python)", ctx, t.Runtime))
