@@ -15,6 +15,11 @@ func runCmd(name string, args ...string) error {
 	if Verbose {
 		fmt.Fprintf(os.Stderr, "  $ %s %s\n", name, strings.Join(args, " "))
 	}
+	if name == "sudo" {
+		// Print directly to stderr so this line isn't lost behind pterm's
+		// ANSI cursor movement when multiple goroutines are running.
+		fmt.Fprintf(os.Stderr, "\n[sudo] password may be required: sudo %s\n", strings.Join(args, " "))
+	}
 	cmd := exec.Command(name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

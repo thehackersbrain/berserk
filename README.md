@@ -290,5 +290,5 @@ will not appear as installed until berserk installs them itself.
 - `git pull --ff-only` in `/opt/berserk/<name>` for every git-installed repo tracked in state
 
 Per-tool updates (`berserk update <name>`) re-run the appropriate install/upgrade
-command at latest. Use `berserk update --backend <pipx|cargo|gem|npm|go>` to
+command at latest. Use `berserk update --backend <pipx|cargo|gem|npm|go|git>` to
 narrow the no-arg sweep to a single backend.

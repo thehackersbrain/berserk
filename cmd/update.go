@@ -19,7 +19,7 @@ var (
 )
 
 var validUpdateBackends = map[string]bool{
-	"pipx": true, "cargo": true, "npm": true, "go": true, "gem": true,
+	"pipx": true, "cargo": true, "npm": true, "go": true, "gem": true, "git": true,
 }
 
 var updateCmd = &cobra.Command{
@@ -27,7 +27,7 @@ var updateCmd = &cobra.Command{
 	Short: "Update tools to latest versions",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if updateBackend != "" && !validUpdateBackends[updateBackend] {
-			return fmt.Errorf("unknown backend %q (expected one of: pipx, cargo, npm, go, gem)", updateBackend)
+			return fmt.Errorf("unknown backend %q (expected one of: pipx, cargo, npm, go, gem, git)", updateBackend)
 		}
 		// --backend only narrows the all-backends sweep; combining it with
 		// explicit tool names or --profile is a category error, not a
@@ -69,6 +69,9 @@ var updateCmd = &cobra.Command{
 			// Parity with install: drop tools not configured for this
 			// distro instead of letting them error deep in pacman/apt.
 			tools = filterByDistro(tools, d)
+			if !opts.DryRun {
+				installer.SudoKeepAlive()
+			}
 			// Parity with install + the --profile branch: honor parallel.
 			failed.Store(updateAll(tools, d, opts, reg.Config.Parallel))
 		case updateProfile != "":
@@ -77,9 +80,13 @@ var updateCmd = &cobra.Command{
 				return err
 			}
 			tools = filterByDistro(tools, d)
+			if !opts.DryRun {
+				installer.SudoKeepAlive()
+			}
 			failed.Store(updateAll(tools, d, opts, reg.Config.Parallel))
 		default:
 			if !opts.DryRun {
+				installer.SudoKeepAlive()
 				printProgress("Updating all backends...")
 			}
 			failed.Store(updateAllBackends(reg, opts, updateBackend))
@@ -194,6 +201,30 @@ func updateAllBackends(reg *registry.Registry, opts installer.Options, only stri
 		}()
 	}
 
+	if want("git") {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for _, t := range reg.Tools {
+				if t.Installer != "git" {
+					continue
+				}
+				if st != nil && !st.Has(t.Name) {
+					continue
+				}
+				printMu.Lock()
+				printProgress("Updating git repo: %s", t.Name)
+				printMu.Unlock()
+				if err := installer.GitPull(t); err != nil {
+					failed.Add(1)
+					printMu.Lock()
+					printWarn("git update %s: %v", t.Name, err)
+					printMu.Unlock()
+				}
+			}
+		}()
+	}
+
 	wg.Wait()
 
 	n := failed.Load()
@@ -241,6 +272,17 @@ func dryRunUpdateAllBackends(reg *registry.Registry, want func(string) bool) int
 				continue
 			}
 			fmt.Printf("[dry-run] would update gem: %s\n", t.Name)
+		}
+	}
+	if want("git") {
+		for _, t := range reg.Tools {
+			if t.Installer != "git" {
+				continue
+			}
+			if st != nil && !st.Has(t.Name) {
+				continue
+			}
+			fmt.Printf("[dry-run] would run: git pull --ff-only in /opt/berserk/%s\n", t.Name)
 		}
 	}
 	return 0
@@ -294,7 +336,7 @@ func updateAll(tools []registry.Tool, d distro.Distro, opts installer.Options, p
 
 func init() {
 	updateCmd.Flags().StringVarP(&updateProfile, "profile", "p", "", "update all tools in a profile")
-	updateCmd.Flags().StringVarP(&updateBackend, "backend", "b", "", "only update a specific backend (pipx, cargo, npm, go, gem)")
+	updateCmd.Flags().StringVarP(&updateBackend, "backend", "b", "", "only update a specific backend (pipx, cargo, npm, go, gem, git)")
 	updateCmd.Flags().BoolVar(&updateDryRun, "dry-run", false, "show what would be updated without doing it")
 	rootCmd.AddCommand(updateCmd)
 }

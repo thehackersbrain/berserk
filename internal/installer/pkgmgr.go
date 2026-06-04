@@ -3,8 +3,27 @@ package installer
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"sync"
 )
+
+// SudoKeepAlive refreshes the sudo credential cache via `sudo -v` before a
+// batch of installs or updates begins. Running it once upfront means all
+// subsequent sudo calls in parallel goroutines skip the password prompt
+// entirely, preventing the prompt from being scrolled off by concurrent
+// pterm output. Failures are silently ignored — sudo may be absent, already
+// cached, or not required for this batch at all.
+func SudoKeepAlive() {
+	if _, err := exec.LookPath("sudo"); err != nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[berserk] sudo credentials may be needed for this operation — enter your password if prompted\n")
+	cmd := exec.Command("sudo", "-v")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	_ = cmd.Run()
+}
 
 // pkgMgrMu serializes every system-package-manager invocation.
 //

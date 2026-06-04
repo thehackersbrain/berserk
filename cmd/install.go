@@ -139,6 +139,10 @@ func toItems(tools []registry.Tool) []installItem {
 }
 
 func runInstalls(items []installItem, d distro.Distro, opts installer.Options, parallel bool, st *state.State) error {
+	if !opts.DryRun {
+		installer.SudoKeepAlive()
+	}
+
 	// Cache "is this tool already managed by some other package manager?"
 	// once instead of spawning N×M subprocesses inside installOne.
 	snap := conflict.LoadInstalled()
